@@ -80,3 +80,7 @@ En la config: `CLAUDE_SIRI_DIR` (carpeta principal, por defecto `~/proyectos`), 
 - La clave SSH del teléfono da acceso a tu usuario. Si perdés el teléfono, borrala de `~/.ssh/authorized_keys`.
 - Con Tailscale, la compu no queda expuesta a internet; sólo la ven tus dispositivos.
 - Conviene apagar el login por contraseña: `PasswordAuthentication no` en `/etc/ssh/sshd_config`.
+
+## Al revés: que la compu te avise al teléfono
+
+`claude-celular --instalar` hace que los avisos (Claude te espera, falló un servicio, se acaba el cupo) te lleguen al teléfono por [ntfy](https://ntfy.sh) cuando la compu está bloqueada o sin uso. No necesita SSH ni Tailscale: sólo la app ntfy suscripta al tema que te muestra el comando.

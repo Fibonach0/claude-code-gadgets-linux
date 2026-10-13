@@ -1,7 +1,9 @@
 # comun.sh — lo que comparten los gadgets en Linux.
 #
 # No es un script: lo cargan los demás con `source`. Trae:
-#   notificar <título> <texto> [sonido]     aviso de escritorio + sonido
+#   notificar <título> <texto> [sonido]     aviso de escritorio + sonido (y al celular si no estás)
+#   al_celular <título> <texto>             aviso al teléfono por ntfy (si hay NTFY_TEMA)
+#   ausente                                 ¿la compu está bloqueada o sin uso hace rato?
 #   hablar <texto>                          lo lee en voz alta
 #   abrir <archivo|carpeta|url>             con la aplicación que corresponda
 #   timer_instalar / timer_desinstalar      trabajos programados (systemd --user)
@@ -40,6 +42,43 @@ notificar() {  # título, texto[, sonido]
     disown 2>/dev/null
   fi
   sonar "${3:-}"
+  # Si no estás en la compu, el aviso de escritorio no lo ve nadie: va al teléfono.
+  if [ -n "${NTFY_TEMA:-}" ] && { [ "${NTFY_SIEMPRE:-0}" = 1 ] || ausente; }; then al_celular "$1" "${2:-}"; fi
+  return 0
+}
+
+# ── Avisos al celular (ntfy) ─────────────────────────────────────────────────
+# Se prende con `claude-celular --instalar`, que define NTFY_TEMA en la config.
+ocio_seg() {  # segundos sin tocar teclado ni mouse; falla si no lo puede saber
+  local v
+  v=$(gdbus call --session --dest org.gnome.Mutter.IdleMonitor --object-path /org/gnome/Mutter/IdleMonitor/Core \
+        --method org.gnome.Mutter.IdleMonitor.GetIdletime 2>/dev/null | grep -o '[0-9]\+' | tail -1)
+  [ -n "$v" ] && { echo $((v / 1000)); return 0; }
+  v=$(gdbus call --session --dest org.freedesktop.ScreenSaver --object-path /org/freedesktop/ScreenSaver \
+        --method org.freedesktop.ScreenSaver.GetSessionIdleTime 2>/dev/null | grep -o '[0-9]\+' | tail -1)   # KDE
+  [ -n "$v" ] && { echo $((v / 1000)); return 0; }
+  command -v xprintidle >/dev/null && v=$(xprintidle 2>/dev/null) && [ -n "$v" ] && { echo $((v / 1000)); return 0; }
+  return 1
+}
+
+ausente() {  # bloqueada, sin sesión gráfica, o sin uso hace NTFY_OCIO minutos (3 por defecto)
+  local s o
+  s=$(loginctl show-user "$(id -un)" -p Display --value 2>/dev/null)
+  [ -n "$s" ] || return 0
+  [ "$(loginctl show-session "$s" -p LockedHint --value 2>/dev/null)" = yes ] && return 0
+  o=$(ocio_seg) || return 1
+  [ "$o" -ge $(( ${NTFY_OCIO:-3} * 60 )) ]
+}
+
+al_celular() {  # título, texto
+  [ -n "${NTFY_TEMA:-}" ] && command -v curl >/dev/null && command -v jq >/dev/null || return 1
+  local cuerpo
+  cuerpo=$(jq -nc --arg t "$NTFY_TEMA" --arg ti "$1" --arg m "${2:-}" '{topic: $t, title: $ti, message: $m, tags: ["sparkles"]}')
+  set -- curl -fsS -m 10 ${NTFY_TOKEN:+-H "Authorization: Bearer $NTFY_TOKEN"} -H "Content-Type: application/json" \
+    -d "$cuerpo" "${NTFY_SERVIDOR:-https://ntfy.sh}"
+  if [ -n "${NTFY_ESPERAR:-}" ]; then "$@" >/dev/null; return; fi   # claude-celular "texto": quiere saber si llegó
+  "$@" >/dev/null 2>&1 &
+  disown 2>/dev/null
 }
 
 hablar() {  # usa BRIEF_VOZ si está definida (voz de speech-dispatcher o de espeak-ng)

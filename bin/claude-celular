@@ -1,0 +1,61 @@
+#!/bin/bash
+# Avisos al celular: si una sesión te queda esperando, falla un servicio o se
+# te acaba el cupo y NO estás en la compu (bloqueada, o sin tocarla hace unos
+# minutos), el aviso te llega al teléfono por ntfy en vez de sonar en un
+# escritorio vacío.
+#
+#   claude-celular --instalar      crea tu tema secreto y te dice cómo suscribirte
+#   claude-celular "texto"         manda un aviso ahora (para probar)
+#   claude-celular --estado        qué tema usa y si ahora te considera ausente
+#   claude-celular --desinstalar
+#
+# ntfy es un servicio de terceros: el texto del aviso (proyecto y última línea
+# de Claude) pasa por ntfy.sh, y quien conozca tu tema puede leerlo. Por eso el
+# tema es largo y al azar. Si preferís, usá tu propio servidor.
+#
+# Config en ~/.config/claude-gadgets/config:
+#   NTFY_TEMA=claude-…        # lo escribe --instalar
+#   NTFY_SERVIDOR=https://ntfy.sh
+#   NTFY_TOKEN=tk_…           # si tu servidor pide login
+#   NTFY_OCIO=3               # minutos sin uso para considerarte ausente
+#   NTFY_SIEMPRE=1            # manda siempre, estés o no
+export PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"
+conf=$HOME/.config/claude-gadgets/config
+[ -f "$conf" ] && . "$conf"
+[ -f $HOME/.claude/gadgets/bin/comun.sh ] && . $HOME/.claude/gadgets/bin/comun.sh
+
+case "${1:-}" in
+  --instalar)
+    command -v curl >/dev/null || { echo "Hace falta curl: sudo apt install curl"; exit 1; }
+    if [ -z "${NTFY_TEMA:-}" ]; then
+      NTFY_TEMA="claude-$(tr -dc 'a-z0-9' < /dev/urandom | head -c 24)"
+      mkdir -p "$(dirname "$conf")"
+      printf '\n# Avisos al celular (claude-celular)\nNTFY_TEMA=%s\n' "$NTFY_TEMA" >> "$conf"
+    fi
+    srv=${NTFY_SERVIDOR:-https://ntfy.sh}
+    cat <<EOF
+✓ Tema: $NTFY_TEMA
+
+En el teléfono:
+  1. Instalá la app ntfy (Android: Play Store o F-Droid · iPhone: App Store).
+  2. Tocá «+» y suscribite al tema:  $NTFY_TEMA
+     (servidor: $srv)
+  O abrí este enlace desde el teléfono:  $srv/$NTFY_TEMA
+
+Probalo:  claude-celular "hola desde la compu"
+EOF
+    exit 0 ;;
+  --desinstalar)
+    [ -f "$conf" ] && sed -i '/^# Avisos al celular (claude-celular)$/d; /^NTFY_TEMA=/d' "$conf"
+    echo "✓ Avisos al celular apagados"; exit 0 ;;
+  --estado)
+    [ -n "${NTFY_TEMA:-}" ] || { echo "Apagado. Para prenderlo: claude-celular --instalar"; exit 0; }
+    echo "Tema: $NTFY_TEMA (${NTFY_SERVIDOR:-https://ntfy.sh})"
+    if [ "${NTFY_SIEMPRE:-0}" = 1 ]; then echo "Manda siempre."
+    elif ausente; then echo "Ahora: ausente → los avisos van al teléfono."
+    else echo "Ahora: estás en la compu (sin uso hace $(ocio_seg 2>/dev/null || echo '?') s; va al teléfono a los $(( ${NTFY_OCIO:-3} * 60 )) s o con la pantalla bloqueada)."; fi
+    exit 0 ;;
+  -h|--help|"") sed -n 2,21p "$0"; exit 0 ;;
+esac
+[ -n "${NTFY_TEMA:-}" ] || { echo "Primero: claude-celular --instalar"; exit 1; }
+NTFY_ESPERAR=1 al_celular "Claude Code" "$*" && echo "✓ Enviado" || { echo "No pude enviarlo (¿hay red? ¿el servidor es ${NTFY_SERVIDOR:-https://ntfy.sh}?)"; exit 1; }

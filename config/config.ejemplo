@@ -92,3 +92,9 @@
 
 # ── Captura → Claude (claude-captura) ────────────────────────────────────────
 # CLAUDE_CAPTURA_MODELO=sonnet
+
+# ── Avisos al celular (claude-celular --instalar escribe NTFY_TEMA) ──────────
+# NTFY_SERVIDOR=https://ntfy.sh
+# NTFY_TOKEN=tk_…          # si tu servidor pide login
+# NTFY_OCIO=3              # minutos sin uso para considerarte ausente
+# NTFY_SIEMPRE=1           # manda siempre, estés o no
