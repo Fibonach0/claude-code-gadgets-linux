@@ -1,0 +1,77 @@
+#!/bin/bash
+# Build de prueba ANTES de mergear: compila el front en una copia aparte y deja
+# anotado si pasó. El hook prebuild-check.sh exige esa marca verde (y posterior
+# al último commit) antes de un `gh pr merge` que toque el front, así un build
+# roto no llega a producción en silencio.
+#
+# En la Mac este gadget existe para compilar en un volumen sensible a mayúsculas;
+# en Linux el disco ya lo es, así que alcanza con una copia limpia en
+# ~/.cache: no pisa tu carpeta build/ ni molesta al servidor de desarrollo.
+# node_modules se enlaza al del repo, así no hay que instalar de nuevo.
+#
+#   claude-prebuild            build del front configurado
+#   claude-prebuild <carpeta>  build de otra carpeta
+#   claude-prebuild --estado   resultado del último build
+#
+# Config en ~/.config/claude-gadgets/config:
+#   PREBUILD_DIR="$HOME/proyectos/hub/front"
+#   PREBUILD_CMD="CI=false GENERATE_SOURCEMAP=false npx react-scripts build"
+export PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"
+export LANG=${LANG:-es_AR.UTF-8}
+conf=~/.config/claude-gadgets/config
+[ -f "$conf" ] && . "$conf"
+[ -f $HOME/.claude/gadgets/bin/comun.sh ] && . $HOME/.claude/gadgets/bin/comun.sh   # avisos, timers y no molestar
+est=~/.claude/estado; mkdir -p "$est"
+marca="$est/prebuild.json"; log="$est/prebuild.log"
+punto="${XDG_CACHE_HOME:-$HOME/.cache}/claude-gadgets/prebuild"
+
+[ "${1:-}" = --estado ] && { [ -f "$marca" ] && jq -r '"\(if .ok then "✅ OK" else "❌ FALLÓ" end) · \(.dir) · commit \(.sha[0:7]) · \(.cuando)"' "$marca" || echo "Todavía no corrió ningún build."; exit 0; }
+
+origen="${1:-${PREBUILD_DIR:-}}"
+[ -z "$origen" ] && { echo "Decime qué carpeta buildear (o definí PREBUILD_DIR en $conf)"; exit 1; }
+origen=$(cd "$origen" && pwd) || exit 1
+[ -f "$origen/package.json" ] || { echo "$origen no parece un proyecto de node (no hay package.json)"; exit 1; }
+
+mkdir -p "$punto"
+
+# Reproduzco la estructura del repo: si node_modules está en la raíz (monorepo
+# con hoisting), node lo encuentra subiendo.
+raiz=$(git -C "$origen" rev-parse --show-toplevel 2>/dev/null || echo "$origen")
+rel=${origen#"$raiz"/}; [ "$rel" = "$origen" ] && rel="."
+destino="$punto/$(basename "$raiz")"
+mkdir -p "$destino/$rel"
+
+# ── 1. Copiar el código (sin node_modules ni build) ──────────────────────────
+rsync -a --delete --exclude node_modules --exclude build --exclude .git "$origen/" "$destino/$rel/"
+enlazar() {  # enlaza el node_modules de $1 dentro de la copia, si existe y sirve
+  [ -d "$1/node_modules" ] || return 0
+  local sub=${1#"$raiz"}; sub=${sub#/}
+  mkdir -p "$destino${sub:+/$sub}"
+  ln -sfn "$1/node_modules" "$destino${sub:+/$sub}/node_modules"
+}
+enlazar "$raiz"; enlazar "$origen"
+[ -e "$destino/node_modules" ] || [ -e "$destino/$rel/node_modules" ] || {
+  echo "No encontré node_modules en $raiz ni en $origen: instalá las dependencias primero."; exit 1; }
+
+# ── 2. Build ─────────────────────────────────────────────────────────────────
+sha=$(git -C "$origen" rev-parse HEAD 2>/dev/null || echo desconocido)
+echo "Buildeando $origen en $destino/$rel…"
+inicio=$(date +%s)
+salida=$(cd "$destino/$rel" && eval "${PREBUILD_CMD:-CI=false GENERATE_SOURCEMAP=false npx react-scripts build}" 2>&1)
+rc=$?
+seg=$(( $(date +%s) - inicio ))
+
+{ echo "=== $(date '+%d/%m %H:%M') · $origen · rc=$rc · ${seg}s"; printf '%s\n' "$salida" | tail -40; } >> "$log"
+jq -n --arg d "$origen" --arg s "$sha" --argjson ok "$([ $rc = 0 ] && echo true || echo false)" \
+   --arg c "$(date '+%d/%m %H:%M')" '{dir:$d, sha:$s, ok:$ok, cuando:$c, ts:(now|floor)}' > "$marca"
+
+if [ $rc = 0 ]; then
+  echo "✅ Compila (${seg}s)."
+  notificar "Build de prueba OK" "El front compila: ya podés mergear" listo
+else
+  echo "❌ El build FALLA (${seg}s). Esto mismo va a romper en producción:"
+  printf '%s\n' "$salida" | grep -iE "error|failed|cannot find|does not contain" | head -12
+  echo "(el detalle completo, en $log)"
+  notificar "Build de prueba FALLÓ" "El front NO compila: mirá claude-prebuild" error
+fi
+exit $rc

@@ -1,0 +1,37 @@
+#!/bin/bash
+# "Preguntarle a Claude" desde el administrador de archivos (Nautilus, Nemo,
+# Caja, Dolphin). Recibe uno o más archivos, pregunta qué querés saber (por
+# defecto: resumen) y abre la respuesta en tu editor de texto. Claude sólo
+# puede LEER (Read), nada más.
+export PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"
+[ -f $HOME/.claude/gadgets/bin/comun.sh ] && . $HOME/.claude/gadgets/bin/comun.sh
+[ $# -eq 0 ] && exit 0
+
+defecto="Resumilo en castellano: qué es, lo importante y si hay algo raro o pendiente."
+preguntar() {
+  if command -v zenity >/dev/null; then
+    zenity --entry --title="Preguntarle a Claude" --width=520 --ok-label=Preguntar --cancel-label=Cancelar \
+      --text="¿Qué querés saber de este archivo?" --entry-text="$defecto" 2>/dev/null
+  elif command -v kdialog >/dev/null; then
+    kdialog --title "Preguntarle a Claude" --inputbox "¿Qué querés saber de este archivo?" "$defecto" 2>/dev/null
+  else
+    echo "$defecto"     # sin zenity ni kdialog: va el resumen
+  fi
+}
+pedido=${CLAUDE_PEDIDO:-$(preguntar)}
+[ -z "$pedido" ] && exit 0
+
+nombres=""; dirs=()
+for f in "$@"; do nombres+="- $f"$'\n'; dirs+=(--add-dir "$(dirname "$f")"); done
+notificar "Claude" "Leyendo $(basename "$1")…"
+
+salida="${TMPDIR:-/tmp}/claude-$(basename "$1" | tr ' /' '__')-$(date +%H%M%S).md"
+{
+  echo "# $(basename "$1")"; echo; echo "> $pedido"; echo
+  cd "$(dirname "$1")" && claude --no-session-persistence -p "Archivos:
+$nombres
+$pedido" "${dirs[@]}" --permission-mode dontAsk --allowedTools "Read" "Grep" "Glob" </dev/null 2>&1
+} > "$salida"
+
+notificar "Claude" "Listo" aviso
+[ -n "$CLAUDE_NO_ABRIR" ] && cat "$salida" || abrir "$salida"

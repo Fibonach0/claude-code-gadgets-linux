@@ -1,0 +1,12 @@
+#!/bin/bash
+# Script para Nautilus / Nemo / Caja: clic derecho → Scripts → Preguntarle a Claude.
+# El administrador de archivos pasa la selección en una variable, una ruta por línea.
+sel="${NAUTILUS_SCRIPT_SELECTED_FILE_PATHS:-${NEMO_SCRIPT_SELECTED_FILE_PATHS:-${CAJA_SCRIPT_SELECTED_FILE_PATHS:-}}}"
+archivos=()
+if [ -n "$sel" ]; then
+  while IFS= read -r f; do [ -n "$f" ] && archivos+=("$f"); done <<<"$sel"
+else
+  for f in "$@"; do archivos+=("$(realpath -- "$f")"); done
+fi
+[ ${#archivos[@]} -eq 0 ] && exit 0
+exec "$HOME/.claude/gadgets/bin/claude-archivo" "${archivos[@]}"

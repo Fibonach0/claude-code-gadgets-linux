@@ -1,0 +1,86 @@
+# Configuración de Claude Code Gadgets. Se copia a ~/.config/claude-gadgets/config
+# (formato bash). Todo es opcional.
+
+# Servicio propio a vigilar desde el indicador de la bandeja (responde 200 = OK).
+# HUB_URL="https://tu-servicio.ejemplo.com/"
+# HUB_NOMBRE="Hub"
+
+# Links extra en el menú ("Texto=URL").
+# LINKS=("Railway=https://railway.com/dashboard" "Supabase=https://supabase.com/dashboard")
+
+# Preguntas desde el celular (claude-siri): carpeta donde trabaja Claude y modelo.
+# CLAUDE_SIRI_DIR="$HOME/proyectos"
+# CLAUDE_SIRI_MODELO="sonnet"
+# Carpetas extra que también puede leer (fuera de CLAUDE_SIRI_DIR):
+# CLAUDE_SIRI_EXTRA=("$HOME/otro-proyecto")
+
+# ── Guardián de deploys ──────────────────────────────────────────────────────
+# nombre|repo|destino|modo   (modo: bundle = mira /static/main.<hash>.js
+#                                    salud  = espera un 200)
+# GUARDIA=("hub|$HOME/proyectos/hub|https://hub.ejemplo.com/|bundle"
+#          "bot|$HOME/proyectos/bot|https://bot.ejemplo.com/|salud")
+# GUARDIA_ESPERA=15
+# GUARDIA_PATRON='^front/'   # si el commit no toca esto, no espera cambio de bundle
+
+# ── Buzón (carpeta mágica) ───────────────────────────────────────────────────
+# Cualquier carpeta sirve; si la sincronizás (Syncthing, Nextcloud, Dropbox…)
+# podés dejar cosas desde el celular.
+# BUZON="$HOME/Para Claude"
+# BUZON_MODELO="sonnet"
+
+# ── Avisos al celular (opcional, servicio público ntfy.sh) ───────────────────
+# NTFY_TOPIC="algo-largo-y-al-azar"
+
+# ── Freno de mano ────────────────────────────────────────────────────────────
+# FRENO=0    # lo apaga
+
+# ── Guardián de trabajos programados ─────────────────────────────────────────
+# Revisa los logs con Claude + el conector de Railway (corre local, no por SSH).
+# JOBS_SERVICIO="el servicio web del proyecto tal"
+# JOBS=("backup_diario|03:00|guarda el dump"
+#       "aviso_precios|08:15|")
+# JOBS_HORA=10
+
+# ── Build de prueba antes de mergear front ───────────────────────────────────
+# PREBUILD_DIR="$HOME/proyectos/hub/front"
+# PREBUILD_CMD="CI=false GENERATE_SOURCEMAP=false npx react-scripts build"
+# PREBUILD_PATRON="^front/"   # qué rutas del PR exigen build verde
+# PREBUILD_CHECK=0            # desactiva el hook antes de mergear
+
+# ── Pendientes dictados ──────────────────────────────────────────────────────
+# PENDIENTES="$HOME/Documentos/Pendientes.md"
+# ANOTAR_CLASIFICA=1
+# ANOTAR_PISTAS="el hub es tal repo; el bot de WhatsApp es tal otro"
+
+# ── Parte hablado de la mañana ───────────────────────────────────────────────
+# BRIEF_HORA=7
+# BRIEF_AGENDA=1
+# BRIEF_VOZ="female1"       # voz de spd-say (o de espeak-ng, p. ej. "es-419")
+
+# ── Freno de mano: excepciones ───────────────────────────────────────────────
+# Las que aprobaste con `claude-permitir --siempre` viven en
+# ~/.config/claude-gadgets/freno-excepciones (una expresión por línea).
+
+# ── Tus números, la cola y el diario ─────────────────────────────────────────
+# LIMITE_AVISOS="60 80 90"
+# COLA_DIR="$HOME/proyectos"
+# COLA_MODO=seguro          # "trabajar" = además edita archivos y corre comandos
+# COLA_MODELO=sonnet
+# DIARIO_DIR="$HOME/Documentos/Diario"
+# DIARIO_HORA=20
+# LIMPIAR_DIAS=90
+# BUSCAR_MODELO=sonnet
+
+# ── No molestar ──────────────────────────────────────────────────────────────
+# Los avisos se callan en esta franja; lo urgente (un servicio caído, algo que
+# te está bloqueando) suena igual.
+# SILENCIO_DESDE=23
+# SILENCIO_HASTA=8
+# SILENCIO_DIAS="sab dom"
+# SILENCIO=0        # lo apaga
+
+# ── Credenciales y trabajo a medio guardar ───────────────────────────────────
+# SECRETOS=0        # apaga el detector de credenciales
+# VIGIA_REPOS=("$HOME/proyectos/hub")   # si no, salen de tus sesiones
+# VIGIA_HORAS=4
+# VIGIA_RAMAS=14
