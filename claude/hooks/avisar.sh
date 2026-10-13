@@ -16,14 +16,31 @@ f="$dir/sesion-$sid.json"
 guardar() { jq -n --arg e "$1" --arg p "$proyecto" --arg c "$cwd" --arg m "$msg" \
   '{estado:$e, proyecto:$p, cwd:$c, mensaje:$m, ts:(now|floor)}' > "$f"; }
 
-# Sólo aviso si no estás mirando la terminal donde corre Claude. Eso se puede
-# saber en X11 (la ventana activa contra $WINDOWID); en Wayland el escritorio no
-# le cuenta a nadie qué ventana tiene el foco, así que ahí aviso siempre.
+# Sólo aviso si no estás mirando la terminal donde corre Claude.
+#  · X11: la ventana activa contra $WINDOWID.
+#  · Wayland (GNOME): el escritorio no le cuenta a nadie qué ventana tiene el
+#    foco, salvo por la extensión «Claude Code Gadgets», que informa el PID de
+#    la ventana activa. Si ese proceso es mi terminal y tiene UNA sola ventana,
+#    la estás mirando; con varias ventanas del mismo proceso no puedo saber
+#    cuál es, y ante la duda aviso. Sin la extensión, aviso siempre.
 mirando() {
-  [ "${XDG_SESSION_TYPE:-}" = x11 ] && [ -n "${WINDOWID:-}" ] && command -v xprop >/dev/null || return 1
-  local activa
-  activa=$(xprop -root _NET_ACTIVE_WINDOW 2>/dev/null | grep -oE '0x[0-9a-fA-F]+' | head -1)
-  [ -n "$activa" ] && [ "$((activa))" = "$WINDOWID" ]
+  if [ "${XDG_SESSION_TYPE:-}" = x11 ]; then
+    [ -n "${WINDOWID:-}" ] && command -v xprop >/dev/null || return 1
+    local activa
+    activa=$(xprop -root _NET_ACTIVE_WINDOW 2>/dev/null | grep -oE '0x[0-9a-fA-F]+' | head -1)
+    [ -n "$activa" ] && [ "$((activa))" = "$WINDOWID" ]; return
+  fi
+  command -v gdbus >/dev/null || return 1
+  local foco pid n p=$$
+  foco=$(gdbus call --session --dest org.gnome.Shell --object-path /org/gnome/Shell/Extensions/ClaudeGadgets \
+           --method org.gnome.Shell.Extensions.ClaudeGadgets.Foco 2>/dev/null) || return 1
+  read -r pid n _ <<<"$(tr -d "(),'" <<<"$foco")"       # (1234, 1, 'gnome-terminal-server')
+  [ "${pid:-0}" -gt 1 ] 2>/dev/null && [ "$n" = 1 ] || return 1
+  while [ "${p:-1}" -gt 1 ]; do                          # ¿esa ventana es un ancestro mío?
+    [ "$p" = "$pid" ] && return 0
+    p=$(ps -o ppid= -p "$p" 2>/dev/null | tr -d ' ')
+  done
+  return 1
 }
 avisar() {  # titulo, texto, sonido[, "urgente"]
   mirando && return

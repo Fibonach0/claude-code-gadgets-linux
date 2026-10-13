@@ -39,5 +39,14 @@ rm -f "$HOME/.config/autostart/claude-gadgets-indicador.desktop" \
       "$HOME/.config/caja/scripts/Preguntarle a Claude" \
       "$HOME/.local/share/kio/servicemenus/claude-gadgets.desktop"
 rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/ulauncher/extensions/claude-gadgets"
+uuid=claude-gadgets@claude-code-gadgets
+if command -v gsettings >/dev/null && lista=$(gsettings get org.gnome.shell enabled-extensions 2>/dev/null); then
+  gnome-extensions disable "$uuid" 2>/dev/null || true
+  case "$lista" in *"'$uuid'"*)
+    nueva=$(sed "s|, '$uuid'||; s|'$uuid', ||; s|'$uuid'||" <<<"$lista"); [ "$nueva" = "[]" ] && nueva="@as []"
+    gsettings set org.gnome.shell enabled-extensions "$nueva" ;;
+  esac
+fi
+rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/gnome-shell/extensions/$uuid"
 rm -rf "$CLAUDE_DIR/gadgets" "${XDG_CACHE_HOME:-$HOME/.cache}/claude-gadgets"
 echo "✓ Scripts, indicador y acción del administrador de archivos borrados"

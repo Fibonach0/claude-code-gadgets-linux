@@ -5,6 +5,7 @@
 #   ./install.sh --sin-barra     no instala el indicador de la bandeja
 #   ./install.sh --sin-archivos  no instala «Preguntarle a Claude» en el administrador de archivos
 #   ./install.sh --sin-ulauncher no instala la extensión de Ulauncher
+#   ./install.sh --sin-gnome     no instala la extensión de GNOME Shell (foco en Wayland)
 # Se puede correr de nuevo sin problema: reemplaza lo suyo y no toca lo demás.
 set -euo pipefail
 
@@ -14,13 +15,14 @@ GADGETS="$CLAUDE_DIR/gadgets"
 SETTINGS="$CLAUDE_DIR/settings.json"
 CONF_DIR="$HOME/.config/claude-gadgets"
 
-CON_PERMISOS=0; SIN_BARRA=0; SIN_ARCHIVOS=0; SIN_ULAUNCHER=0
+CON_PERMISOS=0; SIN_BARRA=0; SIN_ARCHIVOS=0; SIN_ULAUNCHER=0; SIN_GNOME=0
 for a in "$@"; do case "$a" in
   --con-permisos) CON_PERMISOS=1 ;;
   --sin-barra)    SIN_BARRA=1 ;;
   --sin-archivos|--sin-finder) SIN_ARCHIVOS=1 ;;
   --sin-ulauncher) SIN_ULAUNCHER=1 ;;
-  -h|--help) sed -n 2,8p "$0"; exit 0 ;;
+  --sin-gnome)     SIN_GNOME=1 ;;
+  -h|--help) sed -n 2,9p "$0"; exit 0 ;;
   *) echo "Opción desconocida: $a"; exit 1 ;;
 esac; done
 
@@ -172,6 +174,30 @@ if [ $SIN_ULAUNCHER = 0 ] && command -v ulauncher >/dev/null; then
   ok "Extensión instalada: abrí Ulauncher y escribí «c tu pregunta» + Enter"
   if pgrep -f 'bin/ulauncher' >/dev/null 2>&1; then
     ojo "Ulauncher carga las extensiones al arrancar: cerralo y abrilo de nuevo (pkill -f bin/ulauncher; setsid -f ulauncher --hide-window)"
+  fi
+fi
+
+# ── 7. Extensión de GNOME Shell: avisos que se callan en Wayland ─────────────
+uuid=claude-gadgets@claude-code-gadgets
+gnome_v=$(gnome-shell --version 2>/dev/null | grep -oE '[0-9]+' | head -1 || true)
+if [ $SIN_GNOME = 0 ] && [ "${gnome_v:-0}" -ge 45 ]; then
+  paso "7. Extensión de GNOME Shell"
+  ext="${XDG_DATA_HOME:-$HOME/.local/share}/gnome-shell/extensions/$uuid"
+  mkdir -p "$ext"
+  install -m 644 "$AQUI/gnome/$uuid/metadata.json" "$AQUI/gnome/$uuid/extension.js" "$ext/"
+  if ! gnome-extensions enable "$uuid" 2>/dev/null; then
+    # GNOME todavía no la vio (las descubre al iniciar sesión): la dejo anotada como activa.
+    lista=$(gsettings get org.gnome.shell enabled-extensions 2>/dev/null || echo "@as []")
+    case "$lista" in
+      *"'$uuid'"*) ;;
+      "@as []"|"[]") gsettings set org.gnome.shell enabled-extensions "['$uuid']" ;;
+      *) gsettings set org.gnome.shell enabled-extensions "${lista%]}, '$uuid']" ;;
+    esac
+  fi
+  if gnome-extensions info "$uuid" 2>/dev/null | grep -qE 'ACTIVE|ENABLED'; then
+    ok "Extensión activa: en Wayland no te aviso si estás mirando esa terminal"
+  else
+    ok "Extensión instalada: empieza a andar la próxima vez que inicies sesión"
   fi
 fi
 

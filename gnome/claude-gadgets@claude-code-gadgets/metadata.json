@@ -1,0 +1,7 @@
+{
+  "uuid": "claude-gadgets@claude-code-gadgets",
+  "name": "Claude Code Gadgets",
+  "description": "Le dice a los avisos de Claude Code qué ventana tiene el foco, para que en Wayland no te avisen si ya estás mirando esa terminal.",
+  "shell-version": ["45", "46", "47", "48", "49"],
+  "url": "https://github.com/Fibonach0/claude-code-gadgets-linux"
+}

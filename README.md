@@ -8,7 +8,7 @@ Se instalan con un comando y se desinstalan con otro. Es el port de
 |---|---|
 | **Indicador de la bandeja** | `✳ 3% · 45%`: el % de uso de la **sesión** (ventana de 5 h) y de la **semana**, con barra, cuándo se renueva cada uno y las sesiones que te están esperando (🟠). Opcional: si tu servicio responde. |
 | **Statusline** | Abajo de cada sesión: `modelo · carpeta (rama*) · ctx 25% · 5h 3% · 7d 45% · $1.23`. Verde, amarillo desde el 50 %, rojo desde el 80 %. |
-| **Avisos** (hooks) | Notificación y sonido cuando Claude termina o te necesita. En X11, sólo si no estás mirando esa terminal. |
+| **Avisos** (hooks) | Notificación y sonido cuando Claude termina o te necesita, sólo si no estás mirando esa terminal. En X11 anda solo; en Wayland con GNOME 45+ lo resuelve una extensión chiquita de GNOME Shell que instala `install.sh` (publica qué ventana tiene el foco y nada más; si la terminal tiene varias ventanas en un mismo proceso no puede distinguirlas y avisa igual). En otros escritorios Wayland avisa siempre. |
 | **Archivos** | Clic derecho sobre un archivo → *Scripts* → **Preguntarle a Claude** (Nautilus, Nemo, Caja; en Dolphin, menú de acciones). Le preguntás algo y la respuesta se abre en tu editor. Claude sólo puede leer. |
 | **Avisos al celular** | `claude-celular --instalar`: si Claude te queda esperando, falla un servicio o se acaba el cupo y **no estás en la compu** (pantalla bloqueada o sin tocarla hace 3 minutos), el aviso te llega al teléfono por [ntfy](https://ntfy.sh). Crea un tema secreto al azar y te dice cómo suscribirte. El texto del aviso pasa por ntfy.sh (o por tu servidor: `NTFY_SERVIDOR`). |
 | **Médico de servicios** | `claude-medico`: cuando una unidad de systemd falla o queda reiniciándose en bucle (del sistema o tuya), Claude lee el journal y te avisa con la causa y qué hacer. `--instalar` lo deja mirando cada 5 minutos; a mano muestra lo que está mal ahora, y `claude-medico nginx` diagnostica una unidad puntual. Avisa una vez por falla y sólo lee. |
@@ -49,7 +49,7 @@ cd ~/claude-code-gadgets-linux
 ./install.sh --con-permisos  # + permisos de sólo lectura
 ```
 
-Otras opciones: `--sin-barra`, `--sin-archivos`, `--sin-ulauncher`. Podés correrlo de nuevo cuando quieras: reemplaza lo suyo y no toca lo demás.
+Otras opciones: `--sin-barra`, `--sin-archivos`, `--sin-ulauncher`, `--sin-gnome`. Podés correrlo de nuevo cuando quieras: reemplaza lo suyo y no toca lo demás.
 
 Requisitos: Linux con systemd, Claude Code con login de claude.ai (Pro/Max) y estos paquetes
 (el instalador no usa `sudo`: te dice cuáles faltan):
@@ -80,8 +80,10 @@ El texto con el % al lado del ícono es una extensión de AppIndicator que no to
 dibujan. Donde no aparece, el dato está igual: el ícono se pone naranja desde el 50 % y rojo desde el
 80 %, y el número está en el menú y al pasar el mouse. Sólo lo probé en Ubuntu 24.04 con GNOME.
 
-En Wayland el escritorio no le cuenta a nadie qué ventana tiene el foco, así que los avisos llegan
-siempre, aunque estés mirando la terminal. En X11 se callan si la ventana activa es la de Claude.
+En X11 los avisos se callan si la ventana activa es la de Claude. En Wayland el escritorio no le
+cuenta a nadie qué ventana tiene el foco: en GNOME 45+ lo resuelve la extensión que instala
+`install.sh` (arranca en el siguiente inicio de sesión); en los demás escritorios Wayland los avisos
+llegan siempre. La extensión todavía no está probada en una sesión Wayland real.
 
 ### Qué toca
 
@@ -91,6 +93,7 @@ siempre, aunque estés mirando la terminal. En X11 se callan si la ventana activ
 - `~/.config/autostart/claude-gadgets-indicador.desktop`: el indicador arranca al iniciar sesión.
 - `~/.local/share/nautilus/scripts/Preguntarle a Claude` (o el equivalente de Nemo, Caja o Dolphin).
 - `~/.local/share/ulauncher/extensions/claude-gadgets/`: sólo si tenés Ulauncher.
+- `~/.local/share/gnome-shell/extensions/claude-gadgets@claude-code-gadgets/` y su entrada en las extensiones activas: sólo en GNOME 45 o más nuevo.
 - `~/.config/systemd/user/claude-gadgets-*`: sólo los que prendas con `--instalar`.
 - `~/.config/claude-gadgets/config`: tu configuración (ver `config/config.ejemplo`).
 
@@ -219,6 +222,7 @@ claude/hooks/secretos.sh      frena credenciales antes de que entren al repo
 indicador/claude-indicador.py indicador de la bandeja
 archivos/                     «Preguntarle a Claude» para Nautilus/Nemo/Caja y Dolphin
 ulauncher/                    extensión de Ulauncher: «c tu pregunta»
+gnome/                        extensión de GNOME Shell: foco de ventana en Wayland
 bin/comun.sh                  avisos, sonidos, voz y timers (lo cargan los demás)
 bin/silencio.sh               horario de no molestar
 bin/claude-*                  un comando por gadget (ver la tabla de arriba)
