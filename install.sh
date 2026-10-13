@@ -4,6 +4,7 @@
 #   ./install.sh --con-permisos  además permite comandos de sólo lectura sin preguntar
 #   ./install.sh --sin-barra     no instala el indicador de la bandeja
 #   ./install.sh --sin-archivos  no instala «Preguntarle a Claude» en el administrador de archivos
+#   ./install.sh --sin-ulauncher no instala la extensión de Ulauncher
 # Se puede correr de nuevo sin problema: reemplaza lo suyo y no toca lo demás.
 set -euo pipefail
 
@@ -13,12 +14,13 @@ GADGETS="$CLAUDE_DIR/gadgets"
 SETTINGS="$CLAUDE_DIR/settings.json"
 CONF_DIR="$HOME/.config/claude-gadgets"
 
-CON_PERMISOS=0; SIN_BARRA=0; SIN_ARCHIVOS=0
+CON_PERMISOS=0; SIN_BARRA=0; SIN_ARCHIVOS=0; SIN_ULAUNCHER=0
 for a in "$@"; do case "$a" in
   --con-permisos) CON_PERMISOS=1 ;;
   --sin-barra)    SIN_BARRA=1 ;;
   --sin-archivos|--sin-finder) SIN_ARCHIVOS=1 ;;
-  -h|--help) sed -n 2,7p "$0"; exit 0 ;;
+  --sin-ulauncher) SIN_ULAUNCHER=1 ;;
+  -h|--help) sed -n 2,8p "$0"; exit 0 ;;
   *) echo "Opción desconocida: $a"; exit 1 ;;
 esac; done
 
@@ -158,6 +160,19 @@ if [ $SIN_ARCHIVOS = 0 ]; then
   fi
   if [ -n "$puestos" ]; then ok "Clic derecho sobre un archivo → Scripts → Preguntarle a Claude (${puestos# })"
   else ojo "No encontré Nautilus, Nemo, Caja ni Dolphin. Desde la terminal: ~/.claude/gadgets/bin/claude-archivo <archivo>"; fi
+fi
+
+# ── 6. Ulauncher (sólo si lo tenés) ──────────────────────────────────────────
+if [ $SIN_ULAUNCHER = 0 ] && command -v ulauncher >/dev/null; then
+  paso "6. Claude en Ulauncher"
+  ext="${XDG_DATA_HOME:-$HOME/.local/share}/ulauncher/extensions/claude-gadgets"
+  mkdir -p "$ext/images"
+  install -m 644 "$AQUI/ulauncher/manifest.json" "$AQUI/ulauncher/main.py" "$ext/"
+  install -m 644 "$AQUI/ulauncher/images/icon.svg" "$ext/images/"
+  ok "Extensión instalada: abrí Ulauncher y escribí «c tu pregunta» + Enter"
+  if pgrep -f 'bin/ulauncher' >/dev/null 2>&1; then
+    ojo "Ulauncher carga las extensiones al arrancar: cerralo y abrilo de nuevo (pkill -f bin/ulauncher; setsid -f ulauncher --hide-window)"
+  fi
 fi
 
 # ── Listo ────────────────────────────────────────────────────────────────────

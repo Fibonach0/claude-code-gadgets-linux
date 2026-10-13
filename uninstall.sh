@@ -38,5 +38,6 @@ rm -f "$HOME/.config/autostart/claude-gadgets-indicador.desktop" \
       "$HOME/.local/share/nemo/scripts/Preguntarle a Claude" \
       "$HOME/.config/caja/scripts/Preguntarle a Claude" \
       "$HOME/.local/share/kio/servicemenus/claude-gadgets.desktop"
+rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/ulauncher/extensions/claude-gadgets"
 rm -rf "$CLAUDE_DIR/gadgets" "${XDG_CACHE_HOME:-$HOME/.cache}/claude-gadgets"
 echo "✓ Scripts, indicador y acción del administrador de archivos borrados"

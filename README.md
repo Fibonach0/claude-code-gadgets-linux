@@ -10,6 +10,7 @@ Se instalan con un comando y se desinstalan con otro. Es el port de
 | **Statusline** | Abajo de cada sesión: `modelo · carpeta (rama*) · ctx 25% · 5h 3% · 7d 45% · $1.23`. Verde, amarillo desde el 50 %, rojo desde el 80 %. |
 | **Avisos** (hooks) | Notificación y sonido cuando Claude termina o te necesita. En X11, sólo si no estás mirando esa terminal. |
 | **Archivos** | Clic derecho sobre un archivo → *Scripts* → **Preguntarle a Claude** (Nautilus, Nemo, Caja; en Dolphin, menú de acciones). Le preguntás algo y la respuesta se abre en tu editor. Claude sólo puede leer. |
+| **Ulauncher** | Si usás [Ulauncher](https://ulauncher.io): `c ¿cuánto es 30 dólares en pesos?` + Enter y la respuesta aparece en el lanzador (y como notificación, por si lo cerraste). Enter sobre la respuesta la copia; `c ` a secas muestra la última. La palabra clave se cambia en las preferencias de Ulauncher. Usa `claude-siri`: respuestas cortas, sólo lectura y web. |
 | **Desde el celular** | `claude-siri "pregunta"`: una respuesta corta para leer en voz alta. Por SSH desde un Atajo del iPhone ("Oye Siri, consulta Claude") o desde Android (Termux, Tasker). Ver [docs/CELULAR.md](docs/CELULAR.md). |
 | **Guardián de deploys** | `claude-guardia`: cuando mergeás a main, espera a que el cambio llegue de verdad a producción. Si el sitio sigue sirviendo el bundle viejo (build roto que no bloquea el merge) o el servicio no vuelve, te avisa. |
 | **Buzón** | `claude-buzon`: dejás una foto, PDF o Excel en una carpeta (si la sincronizás, también desde el celular) y aparece al lado una ficha en `.md` con los datos. |
@@ -45,7 +46,7 @@ cd ~/claude-code-gadgets-linux
 ./install.sh --con-permisos  # + permisos de sólo lectura
 ```
 
-Otras opciones: `--sin-barra`, `--sin-archivos`. Podés correrlo de nuevo cuando quieras: reemplaza lo suyo y no toca lo demás.
+Otras opciones: `--sin-barra`, `--sin-archivos`, `--sin-ulauncher`. Podés correrlo de nuevo cuando quieras: reemplaza lo suyo y no toca lo demás.
 
 Requisitos: Linux con systemd, Claude Code con login de claude.ai (Pro/Max) y estos paquetes
 (el instalador no usa `sudo`: te dice cuáles faltan):
@@ -86,6 +87,7 @@ siempre, aunque estés mirando la terminal. En X11 se callan si la ventana activ
 - `~/.claude/gadgets/`: comandos e indicador. Enlaces en `~/.local/bin/`.
 - `~/.config/autostart/claude-gadgets-indicador.desktop`: el indicador arranca al iniciar sesión.
 - `~/.local/share/nautilus/scripts/Preguntarle a Claude` (o el equivalente de Nemo, Caja o Dolphin).
+- `~/.local/share/ulauncher/extensions/claude-gadgets/`: sólo si tenés Ulauncher.
 - `~/.config/systemd/user/claude-gadgets-*`: sólo los que prendas con `--instalar`.
 - `~/.config/claude-gadgets/config`: tu configuración (ver `config/config.ejemplo`).
 
@@ -213,6 +215,7 @@ claude/hooks/prebuild-check.sh  exige build verde antes de mergear front
 claude/hooks/secretos.sh      frena credenciales antes de que entren al repo
 indicador/claude-indicador.py indicador de la bandeja
 archivos/                     «Preguntarle a Claude» para Nautilus/Nemo/Caja y Dolphin
+ulauncher/                    extensión de Ulauncher: «c tu pregunta»
 bin/comun.sh                  avisos, sonidos, voz y timers (lo cargan los demás)
 bin/silencio.sh               horario de no molestar
 bin/claude-*                  un comando por gadget (ver la tabla de arriba)

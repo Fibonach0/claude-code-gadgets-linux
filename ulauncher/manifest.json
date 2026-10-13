@@ -1,0 +1,30 @@
+{
+  "required_api_version": "^2.0.0",
+  "name": "Claude",
+  "description": "Preguntale a Claude desde el lanzador: escribí la palabra clave, la pregunta y Enter.",
+  "developer_name": "Claude Code Gadgets",
+  "icon": "images/icon.svg",
+  "options": {
+    "query_debounce": 0.1
+  },
+  "preferences": [
+    {
+      "id": "clave",
+      "type": "keyword",
+      "name": "Palabra clave",
+      "description": "Lo que escribís antes de la pregunta",
+      "default_value": "c"
+    },
+    {
+      "id": "notificar",
+      "type": "select",
+      "name": "Notificación con la respuesta",
+      "description": "Para que la respuesta te llegue igual si cerraste el lanzador mientras Claude pensaba",
+      "default_value": "si",
+      "options": [
+        {"value": "si", "text": "Sí"},
+        {"value": "no", "text": "No"}
+      ]
+    }
+  ]
+}
