@@ -84,3 +84,11 @@
 # VIGIA_REPOS=("$HOME/proyectos/hub")   # si no, salen de tus sesiones
 # VIGIA_HORAS=4
 # VIGIA_RAMAS=14
+
+# ── Médico de servicios (claude-medico) ──────────────────────────────────────
+# MEDICO_IGNORAR=("snap.*" "fwupd-refresh.service")   # patrones que no te importan
+# MEDICO_REPETIR=6        # horas hasta repetir el aviso de una unidad que sigue mal
+# MEDICO_MODELO=haiku
+
+# ── Captura → Claude (claude-captura) ────────────────────────────────────────
+# CLAUDE_CAPTURA_MODELO=sonnet

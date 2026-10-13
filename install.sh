@@ -72,7 +72,7 @@ for f in "$AQUI"/bin/*; do [ -f "$f" ] && install -m 755 "$f" "$GADGETS/bin/"; d
 mkdir -p "$HOME/.local/bin"
 for c in claude-siri claude-estado claude-guardia claude-buzon claude-anotar claude-permitir claude-jobs claude-prebuild \
          claude-horas claude-buscar claude-panel claude-limite claude-cola claude-diario claude-limpiar \
-         claude-pr claude-ritmo claude-retomar claude-decisiones claude-vigia claude-brief claude-captura; do
+         claude-pr claude-ritmo claude-retomar claude-decisiones claude-vigia claude-brief claude-captura claude-medico; do
   ln -sf "$GADGETS/bin/$c" "$HOME/.local/bin/$c"
 done
 ok "statusline, hooks y comandos en $GADGETS/bin (enlazados en ~/.local/bin)"
@@ -191,6 +191,7 @@ cat <<EOF
   • Estado de todo en una pantalla: claude-estado
   • Tus números: claude-horas · claude-panel · claude-buscar "…" · claude-limpiar
   • Los que corren solos (opcionales): claude-limite --instalar,
-    claude-diario --instalar, claude-cola --instalar, claude-brief --instalar
+    claude-diario --instalar, claude-cola --instalar, claude-brief --instalar,
+    claude-medico --instalar (diagnóstico cuando falla un servicio de systemd)
   • Para desinstalar: ./uninstall.sh
 EOF

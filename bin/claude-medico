@@ -1,0 +1,104 @@
+#!/bin/bash
+# Médico de servicios: cuando una unidad de systemd falla (o queda reiniciándose
+# en bucle), Claude lee su journal y te avisa con el diagnóstico en una línea y
+# qué hacer. Mira las unidades del sistema y las tuyas (--user).
+#
+#   claude-medico                  qué está fallando ahora, con diagnóstico
+#   claude-medico <unidad>         diagnóstico de esa unidad, falle o no
+#   claude-medico --instalar / --desinstalar    lo deja mirando cada 5 minutos
+#
+# Avisa una vez por falla; si la misma unidad sigue cayéndose, repite recién a
+# las MEDICO_REPETIR horas. Queda todo en ~/.claude/estado/medico.log.
+# Sólo lee: no reinicia ni toca nada. El journal del sistema lo ve si tu
+# usuario está en el grupo adm o systemd-journal.
+#
+# Config en ~/.config/claude-gadgets/config:
+#   MEDICO_IGNORAR=("snap.*" "fwupd-refresh.service")   # patrones que no te importan
+#   MEDICO_REPETIR=6        # horas hasta repetir el aviso de una unidad que sigue mal
+#   MEDICO_MODELO=haiku
+export PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"
+export LANG=${LANG:-es_AR.UTF-8}
+[ -f ~/.config/claude-gadgets/config ] && . ~/.config/claude-gadgets/config
+[ -f $HOME/.claude/gadgets/bin/comun.sh ] && . $HOME/.claude/gadgets/bin/comun.sh
+tok=~/.config/claude-gadgets/token
+[ -z "$CLAUDE_CODE_OAUTH_TOKEN" ] && [ -f "$tok" ] && export CLAUDE_CODE_OAUTH_TOKEN="$(tr -d '[:space:]' < "$tok")"
+est=${CLAUDE_ESTADO:-$HOME/.claude/estado}; visto="$est/medico-visto"; log="$est/medico.log"; mkdir -p "$est"
+
+case "${1:-}" in
+  --instalar)
+    timer_instalar medico cada:300 --avisar \
+      && echo "✓ Miro los servicios cada 5 minutos y te aviso si alguno falla"; exit 0 ;;
+  --desinstalar) timer_desinstalar medico; echo "✓ Médico de servicios apagado"; exit 0 ;;
+  -h|--help) sed -n 2,18p "$0"; exit 0 ;;
+esac
+command -v systemctl >/dev/null || { echo "Esto necesita systemd."; exit 1; }
+
+sc() { if [ "$1" = usuario ]; then shift; systemctl --user "$@"; else shift; systemctl "$@"; fi; }
+jc() { if [ "$1" = usuario ]; then shift; journalctl --user "$@"; else shift; journalctl "$@"; fi; }
+
+enfermas() {  # una por renglón: ámbito|unidad
+  local a
+  for a in sistema usuario; do
+    { sc $a list-units --state=failed --plain --no-legend 2>/dev/null
+      sc $a list-units --type=service --state=auto-restart --plain --no-legend 2>/dev/null
+    } | awk -v a=$a '$1 ~ /\./ {print a "|" $1}'
+  done | sort -u
+}
+
+ignorada() {
+  local p; for p in "${MEDICO_IGNORAR[@]}"; do [[ $1 == $p ]] && return 0; done; return 1
+}
+
+diagnosticar() {  # ámbito, unidad → dos renglones: causa / qué hacer
+  local a=$1 u=$2 datos
+  datos=$( { sc $a status "$u" --no-pager -n 0 2>&1 | head -25
+             echo "--- journal ---"
+             jc $a -u "$u" -n 80 --no-pager -o short 2>&1 | cut -c1-400; } )
+  claude -p "Esta unidad de systemd ($a) está fallando: $u
+
+$datos
+
+Decime qué le pasa. Respondé EXACTAMENTE dos renglones de texto plano, sin markdown:
+1) la causa más probable según el journal, en una oración;
+2) qué hacer para arreglarlo, en una oración (con el comando si corresponde).
+Si el journal no alcanza para saberlo, decilo en el primer renglón y en el segundo qué mirar." \
+    --no-session-persistence --model "${MEDICO_MODELO:-haiku}" --permission-mode dontAsk --allowedTools "" </dev/null 2>/dev/null \
+    | sed '/^[[:space:]]*$/d' | head -4
+}
+
+# ── Una unidad puntual ───────────────────────────────────────────────────────
+if [ -n "${1:-}" ] && [ "$1" != --avisar ]; then
+  u=$1; [[ $u == *.* ]] || u="$u.service"
+  a=sistema; systemctl --user cat "$u" >/dev/null 2>&1 && ! systemctl cat "$u" >/dev/null 2>&1 && a=usuario
+  sc $a cat "$u" >/dev/null 2>&1 || { echo "No conozco la unidad $u."; exit 1; }
+  echo "$u ($a): $(sc $a is-active "$u" 2>/dev/null)"; diagnosticar $a "$u" | sed 's/^/  /'; exit 0
+fi
+
+# ── Lo que corre solo: avisar sólo lo nuevo ──────────────────────────────────
+if [ "${1:-}" = --avisar ]; then
+  ahora=$(date +%s); touch "$visto"
+  while IFS='|' read -r a u; do
+    [ -n "$u" ] || continue; ignorada "$u" && continue
+    inv=$(sc $a show "$u" -p InvocationID --value 2>/dev/null)
+    ult=$(awk -F'|' -v k="$a|$u" '$1 "|" $2 == k {l=$0} END {print l}' "$visto")
+    if [ -n "$ult" ]; then
+      IFS='|' read -r _ _ inv_v cuando_v <<<"$ult"
+      [ "$inv" = "$inv_v" ] && continue                                   # la misma falla: ya avisé
+      [ $((ahora - cuando_v)) -lt $(( ${MEDICO_REPETIR:-6} * 3600 )) ] && continue   # sigue cayéndose: no insisto
+    fi
+    d=$(diagnosticar $a "$u"); [ -n "$d" ] || d="(no pude consultar a Claude; mirá: journalctl $([ $a = usuario ] && echo --user) -u $u -n 50)"
+    { grep -vF "$a|$u|" "$visto"; echo "$a|$u|$inv|$ahora"; } > "$visto.tmp" && mv "$visto.tmp" "$visto"
+    printf '%s | %s (%s)\n%s\n' "$(date '+%d/%m %H:%M')" "$u" "$a" "$(sed 's/^/    /' <<<"$d")" >> "$log"
+    if declare -f en_silencio >/dev/null && en_silencio; then continue; fi
+    notificar "Falló $u" "$d" error
+  done < <(enfermas)
+  exit 0
+fi
+
+# ── A mano: todo lo que está mal ahora ───────────────────────────────────────
+lista=$(enfermas)
+[ -n "$lista" ] || { echo "✓ Ninguna unidad fallando (sistema y usuario)."; exit 0; }
+while IFS='|' read -r a u; do
+  ignorada "$u" && { echo "$u ($a): ignorada"; continue; }
+  echo "$u ($a)"; diagnosticar $a "$u" | sed 's/^/  /'; echo
+done <<<"$lista"
