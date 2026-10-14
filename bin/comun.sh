@@ -7,6 +7,10 @@
 #   hablar <texto>                          lo lee en voz alta
 #   abrir <archivo|carpeta|url>             con la aplicación que corresponda
 #   timer_instalar / timer_desinstalar      trabajos programados (systemd --user)
+#   claude_texto <modelo> <pedido>          respuesta de Claude sin herramientas
+#   copiar / pegar                          portapapeles (pegar: primero lo seleccionado)
+#   ventana <título> <archivo>              muestra un texto, con botón Copiar
+#   atajo_instalar / atajo_desinstalar      atajos de teclado (GNOME)
 #   en_silencio                             horario de no molestar (silencio.sh)
 #   $DOCS                                   tu carpeta de Documentos (XDG)
 
@@ -89,6 +93,70 @@ hablar() {  # usa BRIEF_VOZ si está definida (voz de speech-dispatcher o de esp
 }
 
 abrir() { xdg-open "$1" >/dev/null 2>&1 & disown 2>/dev/null; }
+
+claude_texto() {  # modelo, pedido → lo que conteste, sin herramientas ni sesión guardada
+  claude -p "$2" --no-session-persistence --model "$1" --permission-mode dontAsk --allowedTools "" </dev/null 2>/dev/null
+}
+
+# ── Portapapeles ─────────────────────────────────────────────────────────────
+copiar() {  # lee de la entrada
+  if   [ -n "${WAYLAND_DISPLAY:-}" ] && command -v wl-copy >/dev/null; then wl-copy
+  elif command -v xclip >/dev/null; then xclip -selection clipboard
+  elif command -v xsel  >/dev/null; then xsel -b
+  else cat >/dev/null; return 1; fi
+}
+pegar() {  # lo que tengas seleccionado; si no hay nada, lo último que copiaste
+  local t=""
+  if [ -n "${WAYLAND_DISPLAY:-}" ] && command -v wl-paste >/dev/null; then
+    t=$(wl-paste -p -n 2>/dev/null); [ -n "$t" ] || t=$(wl-paste -n 2>/dev/null)
+  elif command -v xclip >/dev/null; then
+    t=$(xclip -o -selection primary 2>/dev/null); [ -n "$t" ] || t=$(xclip -o -selection clipboard 2>/dev/null)
+  elif command -v xsel >/dev/null; then
+    t=$(xsel -p 2>/dev/null); [ -n "$t" ] || t=$(xsel -b 2>/dev/null)
+  else return 1; fi
+  printf '%s' "$t"
+}
+
+ventana() {  # título, archivo de texto
+  local r
+  if command -v zenity >/dev/null; then
+    r=$(zenity --text-info --title="$1" --width=700 --height=460 --filename="$2" \
+          --ok-label=Cerrar --extra-button=Copiar 2>/dev/null)
+    [ "$r" = Copiar ] && copiar < "$2" && notificar "Claude" "Copiado"
+  elif command -v kdialog >/dev/null; then kdialog --title "$1" --textbox "$2" 700 460 2>/dev/null
+  else abrir "$2"; fi
+  return 0
+}
+
+# ── Atajos de teclado (GNOME) ────────────────────────────────────────────────
+#   atajo_instalar <id> <nombre> <comando> <atajo>     p. ej. '<Shift><Super>c'
+_at_esq=org.gnome.settings-daemon.plugins.media-keys
+_at_ruta() { echo "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/claude-$1/"; }
+atajo_instalar() {
+  local r lista; r=$(_at_ruta "$1")
+  command -v gsettings >/dev/null && gsettings list-keys $_at_esq >/dev/null 2>&1 || {
+    echo "Los atajos los armo sólo en GNOME. En tu escritorio, asigná uno a: $3"; return 1; }
+  lista=$(gsettings get $_at_esq custom-keybindings)
+  case "$lista" in
+    *"'$r'"*) ;;
+    "@as []"|"[]") gsettings set $_at_esq custom-keybindings "['$r']" ;;
+    *) gsettings set $_at_esq custom-keybindings "${lista%]}, '$r']" ;;
+  esac
+  gsettings set $_at_esq.custom-keybinding:$r name "$2"
+  gsettings set $_at_esq.custom-keybinding:$r command "$3"
+  gsettings set $_at_esq.custom-keybinding:$r binding "$4"
+}
+atajo_desinstalar() {
+  local r lista nueva k; r=$(_at_ruta "$1")
+  command -v gsettings >/dev/null || return 0
+  lista=$(gsettings get $_at_esq custom-keybindings 2>/dev/null) || return 0
+  case "$lista" in *"'$r'"*)
+    nueva=$(sed "s|, '$r'||; s|'$r', ||; s|'$r'||" <<<"$lista"); [ "$nueva" = "[]" ] && nueva="@as []"
+    gsettings set $_at_esq custom-keybindings "$nueva"
+    for k in name command binding; do gsettings reset $_at_esq.custom-keybinding:$r $k; done ;;
+  esac
+  return 0
+}
 
 # ── Trabajos programados: unidades de systemd del usuario ────────────────────
 #   timer_instalar <nombre> cada:<segundos> [argumentos…]

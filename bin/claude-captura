@@ -4,7 +4,8 @@
 # puede LEER esa imagen.
 #   claude-captura                       recortar y preguntar
 #   claude-captura imagen.png            preguntar sobre una imagen que ya tenés
-#   claude-captura --instalar [atajo]    atajo de teclado en GNOME (por defecto <Shift><Super>c)
+#   claude-captura --texto [imagen]      copiar al portapapeles el texto que se ve (OCR)
+#   claude-captura --instalar [atajo] [atajo-texto]   atajos en GNOME (<Shift><Super>c y <Shift><Super>t)
 #   claude-captura --desinstalar
 # En otros escritorios, asigná vos un atajo a ~/.claude/gadgets/bin/claude-captura.
 export PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"
@@ -12,35 +13,13 @@ export PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"
 [ -f $HOME/.claude/gadgets/bin/comun.sh ] && . $HOME/.claude/gadgets/bin/comun.sh
 aqui=$(dirname "$(readlink -f "$0")")
 
-# ── Atajo de teclado (GNOME) ─────────────────────────────────────────────────
-esquema=org.gnome.settings-daemon.plugins.media-keys
-ruta=/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/claude-captura/
 case "${1:-}" in
   --instalar)
-    atajo=${2:-<Shift><Super>c}
-    command -v gsettings >/dev/null && gsettings list-keys $esquema >/dev/null 2>&1 || {
-      echo "Esto arma el atajo sólo en GNOME. En tu escritorio, asigná un atajo a: $HOME/.claude/gadgets/bin/claude-captura"; exit 1; }
-    lista=$(gsettings get $esquema custom-keybindings)
-    case "$lista" in
-      *"'$ruta'"*) ;;
-      "@as []"|"[]") gsettings set $esquema custom-keybindings "['$ruta']" ;;
-      *) gsettings set $esquema custom-keybindings "${lista%]}, '$ruta']" ;;
-    esac
-    gsettings set $esquema.custom-keybinding:$ruta name "Captura para Claude"
-    gsettings set $esquema.custom-keybinding:$ruta command "$HOME/.claude/gadgets/bin/claude-captura"
-    gsettings set $esquema.custom-keybinding:$ruta binding "$atajo"
-    echo "✓ Atajo listo: $atajo → recortás, preguntás y Claude contesta"; exit 0 ;;
-  --desinstalar)
-    command -v gsettings >/dev/null || exit 0
-    lista=$(gsettings get $esquema custom-keybindings 2>/dev/null) || exit 0
-    case "$lista" in *"'$ruta'"*)
-      nueva=$(sed "s|, '$ruta'||; s|'$ruta', ||; s|'$ruta'||" <<<"$lista")
-      [ "$nueva" = "[]" ] && nueva="@as []"
-      gsettings set $esquema custom-keybindings "$nueva"
-      for k in name command binding; do gsettings reset $esquema.custom-keybinding:$ruta $k; done ;;
-    esac
-    echo "✓ Atajo quitado"; exit 0 ;;
-  -h|--help) sed -n 2,9p "$0"; exit 0 ;;
+    atajo_instalar captura "Captura para Claude" "$HOME/.claude/gadgets/bin/claude-captura" "${2:-<Shift><Super>c}" || exit 1
+    atajo_instalar captura-texto "Captura a texto" "$HOME/.claude/gadgets/bin/claude-captura --texto" "${3:-<Shift><Super>t}"
+    echo "✓ Atajos: ${2:-<Shift><Super>c} recortar y preguntar · ${3:-<Shift><Super>t} recortar y copiar el texto"; exit 0 ;;
+  --desinstalar) atajo_desinstalar captura; atajo_desinstalar captura-texto; echo "✓ Atajos quitados"; exit 0 ;;
+  -h|--help) sed -n 2,11p "$0"; exit 0 ;;
 esac
 
 # ── La captura ───────────────────────────────────────────────────────────────
@@ -70,6 +49,7 @@ recortar() {  # deja el recorte en $1; prueba lo que haya, según la sesión
   return 2
 }
 
+texto=0; [ "${1:-}" = --texto ] && { texto=1; shift; }
 dir="${XDG_CACHE_HOME:-$HOME/.cache}/claude-gadgets/capturas"; mkdir -p "$dir"
 find "$dir" -type f -mtime +2 -delete 2>/dev/null     # no junto capturas viejas
 if [ -n "${1:-}" ]; then
@@ -81,6 +61,18 @@ else
     notificar "Claude" "No encontré con qué sacar la captura. Instalá flameshot (X11) o gnome-screenshot (Wayland)." error
     rm -f "$img"; exit 1
   elif [ $r != 0 ]; then rm -f "$img"; exit 0; fi
+fi
+
+# ── Sólo el texto (OCR) ──────────────────────────────────────────────────────
+if [ $texto = 1 ]; then
+  t=$(cd "$dir" && claude --no-session-persistence -p "Transcribí TODO el texto que se ve en esta imagen: $img
+
+Respondé únicamente con el texto, tal cual, respetando los saltos de línea. Sin comentarios, sin comillas, sin markdown. Si no hay texto, respondé vacío." \
+      --add-dir "$(dirname "$img")" --model "${CLAUDE_CAPTURA_MODELO:-sonnet}" --permission-mode dontAsk --allowedTools "Read" </dev/null 2>/dev/null)
+  [ -n "$t" ] || { notificar "Claude" "No encontré texto en la captura" error; exit 1; }
+  if [ -n "${CLAUDE_NO_ABRIR:-}" ]; then printf '%s\n' "$t"; exit 0; fi
+  printf '%s' "$t" | copiar && notificar "Texto copiado" "$(head -c 120 <<<"$t")" ok
+  exit 0
 fi
 
 # ── La pregunta ──────────────────────────────────────────────────────────────
@@ -107,12 +99,5 @@ $pedido" --add-dir "$(dirname "$img")" --model "${CLAUDE_CAPTURA_MODELO:-sonnet}
 # ── La respuesta ─────────────────────────────────────────────────────────────
 if [ -n "${CLAUDE_NO_ABRIR:-}" ]; then cat "$salida"; exit 0; fi
 sonar aviso
-copiar() { if command -v wl-copy >/dev/null && [ -n "${WAYLAND_DISPLAY:-}" ]; then wl-copy < "$1"
-           elif command -v xclip >/dev/null; then xclip -selection clipboard < "$1"
-           elif command -v xsel  >/dev/null; then xsel -b < "$1"; else return 1; fi; }
-if command -v zenity >/dev/null; then
-  r=$(zenity --text-info --title="Claude · $pedido" --width=680 --height=440 --filename="$salida" \
-        --ok-label=Cerrar --extra-button=Copiar 2>/dev/null); [ "$r" = Copiar ] && copiar "$salida" && notificar "Claude" "Respuesta copiada"
-elif command -v kdialog >/dev/null; then kdialog --title "Claude" --textbox "$salida" 680 440 2>/dev/null
-else abrir "$salida"; fi
+ventana "Claude · $pedido" "$salida"
 exit 0

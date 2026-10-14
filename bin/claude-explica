@@ -1,0 +1,28 @@
+#!/bin/bash
+# Explica la salida de un comando: se lo pasás por un caño y te dice qué pasó.
+#   make 2>&1 | claude-explica
+#   journalctl -u nginx -n 100 | claude-explica "¿por qué se reinicia?"
+#   claude-explica archivo.log
+# En la terminal también tenés `ups` (por qué falló el último comando) y
+# Ctrl+G (escribís en castellano lo que querés y lo cambia por el comando):
+# los agrega install.sh a tu ~/.bashrc.
+# Config: EXPLICA_MODELO=sonnet
+export PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"
+[ -f $HOME/.config/claude-gadgets/config ] && . $HOME/.config/claude-gadgets/config
+[ -f $HOME/.claude/gadgets/bin/comun.sh ] && . $HOME/.claude/gadgets/bin/comun.sh
+case "${1:-}" in -h|--help) sed -n 2,9p "$0"; exit 0 ;; esac
+
+pregunta="¿Qué pasó acá y qué hago?"
+if [ -n "${1:-}" ] && [ -f "$1" ]; then datos=$(tail -c 60000 "$1"); shift
+elif [ ! -t 0 ]; then datos=$(tail -c 60000)
+else sed -n 2,9p "$0"; exit 1; fi
+[ -n "$*" ] && pregunta="$*"
+[ -n "${datos//[[:space:]]/}" ] || { echo "No me llegó nada para explicar."; exit 1; }
+
+claude_texto "${EXPLICA_MODELO:-sonnet}" "$pregunta
+Contestá para leer en una terminal: breve, texto plano sin markdown, castellano rioplatense. Primero la causa, después qué hacer (los comandos, cada uno en su renglón).
+${EXPLICA_CONTEXTO:+Contexto: $EXPLICA_CONTEXTO
+}
+<salida>
+$datos
+</salida>"

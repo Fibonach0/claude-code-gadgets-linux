@@ -1,0 +1,17 @@
+#!/bin/bash
+# De castellano a comando: decís qué querés hacer y te devuelve EL comando, en
+# un renglón, sin ejecutarlo.
+#   claude-como "buscar los archivos de más de 1 GB en mi home"
+#   find ~ -type f -size +1G
+# En la terminal está en Ctrl+G: escribís el pedido, apretás Ctrl+G y la línea
+# se cambia por el comando para que lo revises antes de darle Enter.
+# Config: COMO_MODELO=haiku
+export PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"
+[ -f $HOME/.config/claude-gadgets/config ] && . $HOME/.config/claude-gadgets/config
+[ -f $HOME/.claude/gadgets/bin/comun.sh ] && . $HOME/.claude/gadgets/bin/comun.sh
+[ -n "$*" ] || { sed -n 2,8p "$0"; exit 1; }
+so=$(. /etc/os-release 2>/dev/null; echo "${PRETTY_NAME:-Linux}")
+claude_texto "${COMO_MODELO:-haiku}" "Traducí este pedido a UN comando de shell para bash en $so (carpeta actual: $PWD).
+Pedido: $*
+Respondé SOLAMENTE el comando, en un único renglón: sin explicación, sin comillas alrededor, sin markdown, sin sudo salvo que sea imprescindible. Si hacen falta varios pasos, unilos con && o con caños. Si el pedido no se puede resolver con un comando, respondé: # y el motivo en pocas palabras." \
+  | sed 's/^```[a-z]*//; s/```$//' | sed '/^[[:space:]]*$/d' | head -1
