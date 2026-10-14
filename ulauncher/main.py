@@ -3,6 +3,9 @@
 La pregunta la contesta claude-siri (corto, sin markdown, sólo lectura y web).
 Con «c » a secas vuelve a mostrar la última respuesta; Enter sobre la
 respuesta la copia al portapapeles.
+
+«r en 20 minutos sacar la pizza» + Enter deja un recordatorio (claude-recordar);
+«r » a secas muestra los pendientes.
 """
 import os
 import subprocess
@@ -51,12 +54,29 @@ def preguntar(pregunta):
         return "No encuentro claude-siri: ¿están instalados los gadgets?"
 
 
+def correr(comando, *args):
+    try:
+        r = subprocess.run([os.path.join(BIN, comando), *args], capture_output=True, text=True,
+                           timeout=60, stdin=subprocess.DEVNULL)
+        return [l.strip() for l in (r.stdout or r.stderr).splitlines() if l.strip()]
+    except (OSError, subprocess.SubprocessError):
+        return ["No pude correr %s: ¿están instalados los gadgets?" % comando]
+
+
+def renglones(lineas):
+    return RenderResultListAction([ExtensionSmallResultItem(icon=ICONO, name=l[:90], highlightable=False, on_enter=None)
+                                   for l in lineas[:RENGLONES]])
+
+
 class Claude(Extension):
     def __init__(self):
         super().__init__()
         self.ultima = None      # (pregunta, respuesta)
         self.subscribe(KeywordQueryEvent, AlEscribir())
         self.subscribe(ItemEnterEvent, AlEnter())
+
+    def recordar(self, evento, pedido):
+        self._client.send(Response(evento, renglones(correr("claude-recordar", *pedido.split())[-1:])))
 
     def contestar(self, evento, pregunta):
         respuesta = preguntar(pregunta)
@@ -72,6 +92,12 @@ class Claude(Extension):
 class AlEscribir(EventListener):
     def on_event(self, event, extension):
         pregunta = (event.get_argument() or "").strip()
+        if event.get_keyword() == extension.preferences.get("recordar", "r"):
+            if not pregunta:
+                return renglones(correr("claude-recordar"))
+            return RenderResultListAction([ExtensionResultItem(
+                icon=ICONO, name="Recordarme", description=pregunta, highlightable=False,
+                on_enter=ExtensionCustomAction({"recordar": pregunta}, keep_app_open=True))])
         if not pregunta:
             if extension.ultima:
                 return mostrar(*extension.ultima)
@@ -84,6 +110,9 @@ class AlEscribir(EventListener):
 class AlEnter(EventListener):
     def on_event(self, event, extension):
         pregunta = event.get_data()
+        if isinstance(pregunta, dict):
+            threading.Thread(target=extension.recordar, args=(event, pregunta["recordar"]), daemon=True).start()
+            return cartel("Anotando el recordatorio…", pregunta["recordar"])
         # En un hilo: si no, el lanzador queda sordo hasta que Claude termine.
         threading.Thread(target=extension.contestar, args=(event, pregunta), daemon=True).start()
         return cartel("Claude está pensando…", pregunta)

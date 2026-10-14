@@ -34,6 +34,7 @@ EST = pathlib.Path(os.environ.get("CLAUDE_ESTADO", CASA / ".claude" / "estado"))
 CONF = CASA / ".config" / "claude-gadgets" / "config"
 ICONOS = pathlib.Path(os.environ.get("XDG_CACHE_HOME", CASA / ".cache")) / "claude-gadgets" / "iconos"
 LIMPIAR = CASA / ".claude" / "gadgets" / "bin" / "claude-limpiar-estado"
+GADGETS = CASA / ".claude" / "gadgets" / "bin" / "claude-gadgets"
 DIAS = ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"]
 CADA = 30          # segundos entre refrescos
 CADA_HUB = 60      # segundos entre consultas al servicio
@@ -66,6 +67,15 @@ def leer_config():
     lineas += ["", ""]
     links = [l.split("=", 1) for l in lineas[2:] if "=" in l]
     return lineas[0], lineas[1] or "Servicio", links
+
+
+def leer_herramientas():
+    """El menú de gadgets (id, título) lo define claude-gadgets: una sola lista para todos."""
+    try:
+        salida = subprocess.run([str(GADGETS), "--lista"], capture_output=True, text=True, timeout=5).stdout
+    except (OSError, subprocess.SubprocessError):
+        return []
+    return [l.split("|", 1) for l in salida.splitlines() if "|" in l]
 
 
 def a_epoch(v):
@@ -141,6 +151,7 @@ class Indicador:
         self.ind.set_title("Claude Code")
         self.ind.set_status(AppIndicator.IndicatorStatus.ACTIVE)
         self.hub_url, self.hub_nombre, self.links = leer_config()
+        self.herramientas = leer_herramientas()
         self.hub = None          # último código HTTP, o "sin respuesta"
         self.hub_ts = 0
         self.firma = None
@@ -243,6 +254,16 @@ class Indicador:
         for nombre, url in self.links:
             link(nombre, url)
         menu.append(Gtk.SeparatorMenuItem())
+        if self.herramientas:
+            sub = Gtk.Menu()
+            for ident, nombre in self.herramientas:
+                i = Gtk.MenuItem(label=nombre)
+                i.connect("activate", lambda _w, x=ident: subprocess.Popen([str(GADGETS), "--correr", x],
+                                                                           start_new_session=True))
+                sub.append(i)
+            raiz = Gtk.MenuItem(label="Gadgets")
+            raiz.set_submenu(sub)
+            menu.append(raiz)
         link("Ver uso en claude.ai", "https://claude.ai/settings/usage")
         accion("Limpiar sesiones colgadas", self.limpiar)
         accion("Refrescar", self.forzar)

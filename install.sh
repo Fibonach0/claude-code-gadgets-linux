@@ -5,6 +5,7 @@
 #   ./install.sh --sin-barra     no instala el indicador de la bandeja
 #   ./install.sh --sin-archivos  no instala «Preguntarle a Claude» en el administrador de archivos
 #   ./install.sh --sin-ulauncher no instala la extensión de Ulauncher
+#   ./install.sh --sin-terminal  no toca tu ~/.bashrc (Ctrl+G, ups, explica)
 #   ./install.sh --sin-gnome     no instala la extensión de GNOME Shell (foco en Wayland)
 # Se puede correr de nuevo sin problema: reemplaza lo suyo y no toca lo demás.
 set -euo pipefail
@@ -15,14 +16,15 @@ GADGETS="$CLAUDE_DIR/gadgets"
 SETTINGS="$CLAUDE_DIR/settings.json"
 CONF_DIR="$HOME/.config/claude-gadgets"
 
-CON_PERMISOS=0; SIN_BARRA=0; SIN_ARCHIVOS=0; SIN_ULAUNCHER=0; SIN_GNOME=0
+CON_PERMISOS=0; SIN_BARRA=0; SIN_ARCHIVOS=0; SIN_ULAUNCHER=0; SIN_GNOME=0; SIN_TERMINAL=0
 for a in "$@"; do case "$a" in
   --con-permisos) CON_PERMISOS=1 ;;
   --sin-barra)    SIN_BARRA=1 ;;
   --sin-archivos|--sin-finder) SIN_ARCHIVOS=1 ;;
   --sin-ulauncher) SIN_ULAUNCHER=1 ;;
   --sin-gnome)     SIN_GNOME=1 ;;
-  -h|--help) sed -n 2,9p "$0"; exit 0 ;;
+  --sin-terminal)  SIN_TERMINAL=1 ;;
+  -h|--help) sed -n 2,10p "$0"; exit 0 ;;
   *) echo "Opción desconocida: $a"; exit 1 ;;
 esac; done
 
@@ -74,9 +76,11 @@ for f in "$AQUI"/bin/*; do [ -f "$f" ] && install -m 755 "$f" "$GADGETS/bin/"; d
 mkdir -p "$HOME/.local/bin"
 for c in claude-siri claude-estado claude-guardia claude-buzon claude-anotar claude-permitir claude-jobs claude-prebuild \
          claude-horas claude-buscar claude-panel claude-limite claude-cola claude-diario claude-limpiar \
-         claude-pr claude-ritmo claude-retomar claude-decisiones claude-vigia claude-brief claude-captura claude-medico claude-celular; do
+         claude-pr claude-ritmo claude-retomar claude-decisiones claude-vigia claude-brief claude-captura claude-medico claude-celular \
+         claude-portapapeles claude-explica claude-como claude-commit claude-salud claude-portero claude-recordar claude-renombrar claude-gadgets; do
   ln -sf "$GADGETS/bin/$c" "$HOME/.local/bin/$c"
 done
+ln -sf "$GADGETS/bin/claude-gadgets" "$HOME/.local/bin/gadget"     # Go Go Gadget: `gadget salud`, `gadget --menu`
 ok "statusline, hooks y comandos en $GADGETS/bin (enlazados en ~/.local/bin)"
 case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) ojo "~/.local/bin no está en tu PATH: agregalo en ~/.profile para usar los comandos" ;; esac
 
@@ -153,6 +157,7 @@ if [ $SIN_ARCHIVOS = 0 ]; then
     command -v "${par%%|*}" >/dev/null || continue
     mkdir -p "${par#*|}"
     install -m 755 "$AQUI/archivos/Preguntarle a Claude" "${par#*|}/Preguntarle a Claude"
+    install -m 755 "$AQUI/archivos/Renombrar con Claude" "${par#*|}/Renombrar con Claude"
     puestos+=" ${par%%|*}"
   done
   if command -v dolphin >/dev/null; then
@@ -160,7 +165,7 @@ if [ $SIN_ARCHIVOS = 0 ]; then
     install -m 755 "$AQUI/archivos/claude-gadgets.desktop" "$HOME/.local/share/kio/servicemenus/claude-gadgets.desktop"
     puestos+=" dolphin"
   fi
-  if [ -n "$puestos" ]; then ok "Clic derecho sobre un archivo → Scripts → Preguntarle a Claude (${puestos# })"
+  if [ -n "$puestos" ]; then ok "Clic derecho sobre un archivo → Scripts → Preguntarle a Claude · Renombrar con Claude (${puestos# })"
   else ojo "No encontré Nautilus, Nemo, Caja ni Dolphin. Desde la terminal: ~/.claude/gadgets/bin/claude-archivo <archivo>"; fi
 fi
 
@@ -201,6 +206,19 @@ if [ $SIN_GNOME = 0 ] && [ "${gnome_v:-0}" -ge 45 ]; then
   fi
 fi
 
+# ── 8. La terminal: Ctrl+G, ups y explica ────────────────────────────────────
+if [ $SIN_TERMINAL = 0 ]; then
+  paso "8. Terminal (bash)"
+  mkdir -p "$GADGETS/shell"
+  install -m 644 "$AQUI/shell/claude-gadgets.bash" "$GADGETS/shell/"
+  if grep -qF 'claude-gadgets.bash' "$HOME/.bashrc" 2>/dev/null; then ok "Tu ~/.bashrc ya los carga"
+  else
+    [ -f "$HOME/.bashrc" ] && cp "$HOME/.bashrc" "$HOME/.bashrc.bak-$(date +%Y%m%d%H%M%S)"
+    printf '\n# >>> claude-gadgets >>>\n[ -f ~/.claude/gadgets/shell/claude-gadgets.bash ] && . ~/.claude/gadgets/shell/claude-gadgets.bash\n# <<< claude-gadgets <<<\n' >> "$HOME/.bashrc"
+    ok "Agregué tres renglones a ~/.bashrc (con respaldo .bak-*): en una terminal nueva tenés Ctrl+G, ups y explica"
+  fi
+fi
+
 # ── Listo ────────────────────────────────────────────────────────────────────
 paso "Listo ✳"
 cat <<EOF
@@ -213,8 +231,11 @@ cat <<EOF
   • Guardián de deploys y buzón (opcionales, se prenden a mano):
       claude-guardia --instalar     (antes: definí GUARDIA en la config)
       claude-buzon --instalar       (crea la carpeta «Para Claude» en tu home)
+  • Todo lo que hay y qué está prendido: gadget        (menú en pantalla: gadget --menu)
+  • Atajos de teclado (GNOME): claude-captura --instalar, claude-portapapeles --instalar,
+    gadget --instalar
   • Avisos al teléfono cuando no estás en la compu: claude-celular --instalar
-  • Captura de pantalla → Claude con un atajo de teclado: claude-captura --instalar
+  • Vigilancia de la máquina: claude-salud --instalar, claude-portero --instalar
   • Estado de todo en una pantalla: claude-estado
   • Tus números: claude-horas · claude-panel · claude-buscar "…" · claude-limpiar
   • Los que corren solos (opcionales): claude-limite --instalar,

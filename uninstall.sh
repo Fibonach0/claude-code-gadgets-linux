@@ -25,20 +25,26 @@ fi
 "$CLAUDE_DIR/gadgets/bin/claude-guardia" --desinstalar 2>/dev/null || true
 "$CLAUDE_DIR/gadgets/bin/claude-buzon" --desinstalar 2>/dev/null || true
 "$CLAUDE_DIR/gadgets/bin/claude-jobs" --desinstalar 2>/dev/null || true
-for g in claude-limite claude-diario claude-cola claude-brief claude-vigia claude-captura claude-medico; do
+for g in claude-limite claude-diario claude-cola claude-brief claude-vigia claude-captura claude-medico \
+         claude-portapapeles claude-gadgets claude-salud claude-portero claude-recordar; do
   "$CLAUDE_DIR/gadgets/bin/$g" --desinstalar 2>/dev/null || true
 done
 rm -f "$CLAUDE_DIR/statusline.sh" "$CLAUDE_DIR/hooks/avisar.sh" "$CLAUDE_DIR/hooks/frenar.sh" "$CLAUDE_DIR/hooks/prebuild-check.sh" "$CLAUDE_DIR/hooks/secretos.sh"
 for c in claude-siri claude-estado claude-guardia claude-buzon claude-anotar claude-permitir claude-jobs claude-prebuild \
          claude-horas claude-buscar claude-panel claude-limite claude-cola claude-diario claude-limpiar claude-brief \
-         claude-pr claude-ritmo claude-retomar claude-decisiones claude-vigia claude-captura claude-medico claude-celular; do rm -f "$HOME/.local/bin/$c"; done
+         claude-pr claude-ritmo claude-retomar claude-decisiones claude-vigia claude-captura claude-medico claude-celular \
+         claude-portapapeles claude-explica claude-como claude-commit claude-salud claude-portero claude-recordar claude-renombrar claude-gadgets gadget; do rm -f "$HOME/.local/bin/$c"; done
 pkill -f "$CLAUDE_DIR/gadgets/indicador/claude-indicador.py" 2>/dev/null || true
 rm -f "$HOME/.config/autostart/claude-gadgets-indicador.desktop" \
       "$HOME/.local/share/nautilus/scripts/Preguntarle a Claude" \
+      "$HOME/.local/share/nautilus/scripts/Renombrar con Claude" \
+      "$HOME/.local/share/nemo/scripts/Renombrar con Claude" \
+      "$HOME/.config/caja/scripts/Renombrar con Claude" \
       "$HOME/.local/share/nemo/scripts/Preguntarle a Claude" \
       "$HOME/.config/caja/scripts/Preguntarle a Claude" \
       "$HOME/.local/share/kio/servicemenus/claude-gadgets.desktop"
 rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/ulauncher/extensions/claude-gadgets"
+[ -f "$HOME/.bashrc" ] && sed -i '/^# >>> claude-gadgets >>>$/,/^# <<< claude-gadgets <<<$/d' "$HOME/.bashrc"
 uuid=claude-gadgets@claude-code-gadgets
 if command -v gsettings >/dev/null && lista=$(gsettings get org.gnome.shell enabled-extensions 2>/dev/null); then
   gnome-extensions disable "$uuid" 2>/dev/null || true

@@ -1,7 +1,7 @@
 {
   "required_api_version": "^2.0.0",
   "name": "Claude",
-  "description": "Preguntale a Claude desde el lanzador: escribí la palabra clave, la pregunta y Enter.",
+  "description": "Preguntale a Claude desde el lanzador («c pregunta») y dejate recordatorios («r en 20 minutos sacar la pizza»).",
   "developer_name": "Claude Code Gadgets",
   "icon": "images/icon.svg",
   "options": {
@@ -16,14 +16,27 @@
       "default_value": "c"
     },
     {
+      "id": "recordar",
+      "type": "keyword",
+      "name": "Recordatorios",
+      "description": "«r mañana a las 9 llamar al contador». Sola, muestra los pendientes.",
+      "default_value": "r"
+    },
+    {
       "id": "notificar",
       "type": "select",
       "name": "Notificación con la respuesta",
       "description": "Para que la respuesta te llegue igual si cerraste el lanzador mientras Claude pensaba",
       "default_value": "si",
       "options": [
-        {"value": "si", "text": "Sí"},
-        {"value": "no", "text": "No"}
+        {
+          "value": "si",
+          "text": "Sí"
+        },
+        {
+          "value": "no",
+          "text": "No"
+        }
       ]
     }
   ]

@@ -1,0 +1,113 @@
+#!/bin/bash
+# Go Go Gadget: la navaja suiza. Todos los gadgets en un solo lugar.
+#   gadget                       qué hay y qué está prendido
+#   gadget <nombre> [args]       atajo de claude-<nombre>   (gadget salud, gadget recordar en 5 minutos té)
+#   gadget --menu                menú en pantalla para elegir uno
+#   gadget --instalar [atajo]    atajo de teclado en GNOME para el menú (<Shift><Super>g)
+#   gadget --desinstalar
+export PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"
+[ -f $HOME/.config/claude-gadgets/config ] && . $HOME/.config/claude-gadgets/config
+[ -f $HOME/.claude/gadgets/bin/comun.sh ] && . $HOME/.claude/gadgets/bin/comun.sh
+B="$HOME/.claude/gadgets/bin"
+cache="${XDG_CACHE_HOME:-$HOME/.cache}/claude-gadgets"; mkdir -p "$cache"
+
+# id|título del menú
+MENU="captura|Recortar la pantalla y preguntarle a Claude
+texto|Recortar la pantalla y copiar el texto
+portapapeles|Hacer algo con el texto seleccionado
+preguntar|Pregunta rápida…
+recordar|Recordarme algo…
+anotar|Anotar un pendiente…
+salud|Salud de la máquina
+medico|Servicios caídos, con diagnóstico
+portero|Quién entró por SSH
+estado|Estado de mis servicios y repos
+recordatorios|Ver mis recordatorios
+panel|Abrir el panel de horas"
+
+en_ventana() {  # título, comando… → corre y muestra la salida
+  local t=$1 f="$cache/menu-salida.txt"; shift
+  "$@" 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > "$f"; [ -s "$f" ] || echo "(sin salida)" > "$f"
+  ventana "$t" "$f"
+}
+pedir() { zenity --entry --title="$1" --width=520 --text="$2" 2>/dev/null; }
+
+correr() {
+  local t
+  case "$1" in
+    captura)       exec "$B/claude-captura" ;;
+    texto)         exec "$B/claude-captura" --texto ;;
+    portapapeles)  exec "$B/claude-portapapeles" ;;
+    preguntar)     t=$(pedir "Claude" "¿Qué querés saber?") && [ -n "$t" ] && { notificar "Claude" "Pensando…"; en_ventana "Claude · $t" "$B/claude-siri" "$t"; } ;;
+    recordar)      t=$(pedir "Recordatorio" "¿Cuándo y qué? (en 20 minutos sacar la pizza · mañana a las 9 llamar al contador)") && [ -n "$t" ] \
+                     && notificar "Recordatorio" "$("$B/claude-recordar" $t 2>&1 | tail -1)" ok ;;
+    anotar)        t=$(pedir "Anotar" "¿Qué anoto?") && [ -n "$t" ] && notificar "Anotado" "$("$B/claude-anotar" "$t" 2>&1 | tail -1)" ok ;;
+    salud)         en_ventana "Salud de la máquina" "$B/claude-salud" ;;
+    medico)        notificar "Claude" "Revisando los servicios…"; en_ventana "Servicios" "$B/claude-medico" ;;
+    portero)       en_ventana "Portero" "$B/claude-portero" ;;
+    estado)        en_ventana "Estado" "$B/claude-estado" ;;
+    recordatorios) en_ventana "Recordatorios" "$B/claude-recordar" ;;
+    panel)         exec "$B/claude-panel" ;;
+    *) return 1 ;;
+  esac
+}
+
+case "${1:-}" in
+  --instalar)
+    atajo_instalar gadgets "Go Go Gadget (menú de Claude)" "$B/claude-gadgets --menu" "${2:-<Shift><Super>g}" \
+      && echo "✓ Atajo listo: ${2:-<Shift><Super>g} abre el menú de gadgets"; exit 0 ;;
+  --desinstalar) atajo_desinstalar gadgets; echo "✓ Atajo quitado"; exit 0 ;;
+  -h|--help) sed -n 2,7p "$0"; exit 0 ;;
+  --lista) echo "$MENU"; exit 0 ;;                 # lo usa el indicador de la bandeja
+  --correr) correr "${2:-}"; exit ;;
+  --menu)
+    command -v zenity >/dev/null || { echo "El menú necesita zenity (sudo apt install zenity)."; exit 1; }
+    filas=(); while IFS='|' read -r id titulo; do filas+=("$id" "$titulo"); done <<<"$MENU"
+    id=$(zenity --list --title="Go Go Gadget…" --text="¿Qué gadget?" --width=460 --height=470 --hide-header \
+          --hide-column=1 --print-column=1 --column=id --column=Gadget "${filas[@]}" 2>/dev/null) || exit 0
+    correr "$id"; exit ;;
+  "") ;;
+  *) n=$1; shift
+     [ -x "$B/claude-$n" ] && exec "$B/claude-$n" "$@"
+     echo "No conozco el gadget «$n». Probá: gadget"; exit 1 ;;
+esac
+
+# ── Sin argumentos: el inventario ────────────────────────────────────────────
+timer() { systemctl --user is-active "claude-gadgets-$1.timer" >/dev/null 2>&1 && printf '\033[32mprendido\033[0m' || printf '\033[2mapagado\033[0m'; }
+atajo() { local b; b=$(gsettings get org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:"$(_at_ruta "$1")" binding 2>/dev/null | tr -d "'")
+          [ -n "$b" ] && printf '\033[32m%s\033[0m' "$b" || printf '\033[2msin atajo\033[0m'; }
+f() { printf '  %-22s %s\n' "$1" "$2"; }
+printf '\033[1m✳ Go Go Gadget…\033[0m  (gadget <nombre> · gadget --menu)\n'
+printf '\n\033[1mCon atajo de teclado\033[0m\n'
+f captura      "recortar la pantalla y preguntar · $(atajo captura)"
+f "captura --texto" "recortar y copiar el texto · $(atajo captura-texto)"
+f portapapeles "explicar, traducir o corregir lo seleccionado · $(atajo portapapeles)"
+f "gadgets --menu" "este menú, en pantalla · $(atajo gadgets)"
+printf '\n\033[1mCorren solos\033[0m  (--instalar / --desinstalar)\n'
+f limite   "aviso cuando se acaba el cupo semanal · $(timer limite)"
+f medico   "diagnóstico cuando falla un servicio · $(timer medico)"
+f salud    "disco, memoria, temperatura, batería · $(timer salud)"
+f portero  "quién entra por SSH · $(timer portero)"
+f buzon    "carpeta «Para Claude» · $(timer buzon)"
+f guardia  "que el deploy llegue a producción · $(timer guardia)"
+f vigia    "PRs y ramas olvidadas · $(timer vigia)"
+f cola     "tareas en fila para Claude · $(timer cola)"
+f diario   "diario de trabajo · $(timer diario)"
+f brief    "parte de la mañana · $(timer brief)"
+f recordar "recordatorios en castellano · $(n=$(grep -c . "$HOME/.claude/estado/recordatorios" 2>/dev/null); echo "${n:-0} pendiente(s)")"
+f celular  "avisos al teléfono si no estás · $([ -n "${NTFY_TEMA:-}" ] && printf '\033[32mprendido\033[0m' || printf '\033[2mapagado\033[0m')"
+printf '\n\033[1mEn la terminal\033[0m\n'
+f "Ctrl+G"   "de castellano a comando, en la línea que estás escribiendo"
+f ups        "por qué falló el último comando"
+f "… | explica" "explica la salida de cualquier comando"
+f commit     "mensaje de commit para lo que está en stage"
+f como       "«cómo hago…» → el comando"
+f "pr / retomar / ritmo" "tu trabajo con Claude Code (y decisiones)"
+printf '\n\033[1mA mano\033[0m\n'
+f estado     "servicios, repos y cupo en una pantalla"
+f "horas / panel / buscar" "tus números y tus sesiones"
+f renombrar  "nombres descriptivos para archivos (también clic derecho)"
+f archivo    "preguntar sobre un archivo (también clic derecho)"
+f anotar     "anotar un pendiente dictado"
+f siri       "pregunta rápida (Ulauncher: c … · celular: por SSH)"
+f limpiar    "sesiones y archivos viejos"

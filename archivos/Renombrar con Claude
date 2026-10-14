@@ -1,0 +1,8 @@
+#!/bin/bash
+# Script del administrador de archivos (Nautilus, Nemo, Caja): propone nombres
+# descriptivos para los archivos elegidos.
+sel=${NAUTILUS_SCRIPT_SELECTED_FILE_PATHS:-${NEMO_SCRIPT_SELECTED_FILE_PATHS:-${CAJA_SCRIPT_SELECTED_FILE_PATHS:-}}}
+archivos=()
+if [ -n "$sel" ]; then while IFS= read -r f; do [ -n "$f" ] && archivos+=("$f"); done <<<"$sel"
+else archivos=("$@"); fi
+exec "$HOME/.claude/gadgets/bin/claude-renombrar" "${archivos[@]}"

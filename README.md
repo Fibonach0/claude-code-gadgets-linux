@@ -10,6 +10,15 @@ Se instalan con un comando y se desinstalan con otro. Es el port de
 | **Statusline** | Abajo de cada sesión: `modelo · carpeta (rama*) · ctx 25% · 5h 3% · 7d 45% · $1.23`. Verde, amarillo desde el 50 %, rojo desde el 80 %. |
 | **Avisos** (hooks) | Notificación y sonido cuando Claude termina o te necesita, sólo si no estás mirando esa terminal. En X11 anda solo; en Wayland con GNOME 45+ lo resuelve una extensión chiquita de GNOME Shell que instala `install.sh` (publica qué ventana tiene el foco y nada más; si la terminal tiene varias ventanas en un mismo proceso no puede distinguirlas y avisa igual). En otros escritorios Wayland avisa siempre. |
 | **Archivos** | Clic derecho sobre un archivo → *Scripts* → **Preguntarle a Claude** (Nautilus, Nemo, Caja; en Dolphin, menú de acciones). Le preguntás algo y la respuesta se abre en tu editor. Claude sólo puede leer. |
+| **Go Go Gadget** | `gadget`: el inventario de todo, con qué está prendido. `gadget <nombre>` es atajo de `claude-<nombre>`, y `gadget --menu` (`Súper+Mayús+G` con `gadget --instalar`) abre un menú en pantalla para elegir uno. El mismo menú está en el indicador de la bandeja, en *Gadgets*. |
+| **Lo seleccionado → Claude** | `claude-portapapeles`: marcás un texto en cualquier programa, apretás `Súper+Mayús+X` (`--instalar`) y elegís: explicar, resumir, traducir al castellano o al inglés, corregir la redacción, escribir una respuesta u otra cosa. La respuesta sale en una ventana; si es un texto para pegar, ya queda copiado. |
+| **Captura → texto** | `claude-captura --texto` (`Súper+Mayús+T`): recortás un pedazo de pantalla y el texto que se ve queda en el portapapeles. OCR sin instalar nada. |
+| **Terminal** (bash) | **Ctrl+G**: escribís en castellano lo que querés hacer y la línea se cambia por el comando, sin ejecutarlo. **`ups`**: por qué falló el último comando y cómo arreglarlo (`ups -r` lo corre de nuevo para leer el error). **`comando 2>&1 \| explica`**: explica cualquier salida. `claude-como "…"` devuelve el comando suelto. |
+| **Commits** | `claude-commit`: escribe el mensaje a partir de lo que está en stage, con el estilo de los commits anteriores, y pregunta antes de commitear (`-a` suma todo, `-s` no pregunta, `-m` sólo imprime). |
+| **Salud de la máquina** | `claude-salud`: disco, memoria y swap, temperatura, batería, servicios caídos, reinicio pendiente y actualizaciones en una pantalla. `--instalar` avisa cuando algo pasa de la raya (una vez por problema); `--consejo` le pide a Claude qué limpiar. |
+| **Portero** | `claude-portero --instalar`: aviso cuando alguien entra a la máquina por SSH (quién, desde dónde, cómo) y cuando hay una tanda de intentos fallidos. `PORTERO_CONOCIDAS` evita avisos de tu propia red. |
+| **Recordatorios** | `claude-recordar en 20 minutos sacar la pizza`, `claude-recordar mañana a las 9 llamar al contador`. Avisa a la hora, sobrevive a un reinicio y, si no estás, va al teléfono. En Ulauncher: `r mañana 18:30 partido`. |
+| **Renombrar con Claude** | Clic derecho → *Scripts* → **Renombrar con Claude** (o `claude-renombrar archivos…`): mira `IMG_4821.jpg` y `descarga (2).pdf` y propone nombres que dicen qué son. Tildás cuáles aceptar; `--deshacer` vuelve atrás. |
 | **Avisos al celular** | `claude-celular --instalar`: si Claude te queda esperando, falla un servicio o se acaba el cupo y **no estás en la compu** (pantalla bloqueada o sin tocarla hace 3 minutos), el aviso te llega al teléfono por [ntfy](https://ntfy.sh). Crea un tema secreto al azar y te dice cómo suscribirte. El texto del aviso pasa por ntfy.sh (o por tu servidor: `NTFY_SERVIDOR`). |
 | **Médico de servicios** | `claude-medico`: cuando una unidad de systemd falla o queda reiniciándose en bucle (del sistema o tuya), Claude lee el journal y te avisa con la causa y qué hacer. `--instalar` lo deja mirando cada 5 minutos; a mano muestra lo que está mal ahora, y `claude-medico nginx` diagnostica una unidad puntual. Avisa una vez por falla y sólo lee. |
 | **Captura → Claude** | `claude-captura`: recortás un pedazo de pantalla (un error, un gráfico, un mail), preguntás y la respuesta aparece en una ventanita, con botón para copiarla. `claude-captura --instalar` le pone un atajo en GNOME (`Súper+Mayús+C`; otro: `--instalar '<Control><Alt>c'`). Recorta con lo que tengas: flameshot, gnome-screenshot, spectacle, el portal de escritorio… Claude sólo lee esa imagen. |
@@ -49,7 +58,7 @@ cd ~/claude-code-gadgets-linux
 ./install.sh --con-permisos  # + permisos de sólo lectura
 ```
 
-Otras opciones: `--sin-barra`, `--sin-archivos`, `--sin-ulauncher`, `--sin-gnome`. Podés correrlo de nuevo cuando quieras: reemplaza lo suyo y no toca lo demás.
+Otras opciones: `--sin-barra`, `--sin-archivos`, `--sin-ulauncher`, `--sin-gnome`, `--sin-terminal`. Podés correrlo de nuevo cuando quieras: reemplaza lo suyo y no toca lo demás.
 
 Requisitos: Linux con systemd, Claude Code con login de claude.ai (Pro/Max) y estos paquetes
 (el instalador no usa `sudo`: te dice cuáles faltan):
@@ -92,6 +101,8 @@ llegan siempre. La extensión todavía no está probada en una sesión Wayland r
 - `~/.claude/gadgets/`: comandos e indicador. Enlaces en `~/.local/bin/`.
 - `~/.config/autostart/claude-gadgets-indicador.desktop`: el indicador arranca al iniciar sesión.
 - `~/.local/share/nautilus/scripts/Preguntarle a Claude` (o el equivalente de Nemo, Caja o Dolphin).
+- `~/.bashrc`: tres renglones al final (entre marcas `claude-gadgets`) que cargan Ctrl+G, `ups` y `explica`. Antes deja un respaldo `.bashrc.bak-*`.
+- Atajos de teclado de GNOME: sólo los que prendas con `--instalar`.
 - `~/.local/share/ulauncher/extensions/claude-gadgets/`: sólo si tenés Ulauncher.
 - `~/.local/share/gnome-shell/extensions/claude-gadgets@claude-code-gadgets/` y su entrada en las extensiones activas: sólo en GNOME 45 o más nuevo.
 - `~/.config/systemd/user/claude-gadgets-*`: sólo los que prendas con `--instalar`.
@@ -223,6 +234,7 @@ indicador/claude-indicador.py indicador de la bandeja
 archivos/                     «Preguntarle a Claude» para Nautilus/Nemo/Caja y Dolphin
 ulauncher/                    extensión de Ulauncher: «c tu pregunta»
 gnome/                        extensión de GNOME Shell: foco de ventana en Wayland
+shell/claude-gadgets.bash     Ctrl+G, ups y explica para bash
 bin/comun.sh                  avisos, sonidos, voz y timers (lo cargan los demás)
 bin/silencio.sh               horario de no molestar
 bin/claude-*                  un comando por gadget (ver la tabla de arriba)

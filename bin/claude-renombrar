@@ -1,0 +1,69 @@
+#!/bin/bash
+# Renombrar con Claude: elegís archivos con nombres que no dicen nada
+# (IMG_4821.jpg, scan0003.pdf, descarga (2).pdf), Claude los mira y propone
+# nombres descriptivos. Vos tildás cuáles aceptar; nada se renombra sin tu OK.
+#   claude-renombrar archivo…        (o clic derecho → Scripts → Renombrar con Claude)
+#   claude-renombrar --deshacer      vuelve atrás el último renombrado
+# Claude sólo puede LEER esos archivos. Hasta 25 por vez.
+# Config: RENOMBRAR_MODELO=sonnet · RENOMBRAR_ESTILO="minúsculas con guiones, fecha AAAA-MM-DD adelante si se ve"
+export PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"
+[ -f $HOME/.config/claude-gadgets/config ] && . $HOME/.config/claude-gadgets/config
+[ -f $HOME/.claude/gadgets/bin/comun.sh ] && . $HOME/.claude/gadgets/bin/comun.sh
+dir="${XDG_CACHE_HOME:-$HOME/.cache}/claude-gadgets"; mkdir -p "$dir"; atras="$dir/renombrar-deshacer"
+
+case "${1:-}" in
+  --deshacer)
+    [ -s "$atras" ] || { echo "No hay nada para deshacer."; exit 0; }
+    while IFS=$'\t' read -r nuevo viejo; do
+      [ -e "$nuevo" ] && [ ! -e "$viejo" ] && mv -n -- "$nuevo" "$viejo" && echo "  $(basename "$nuevo") → $(basename "$viejo")"
+    done < "$atras"; rm -f "$atras"; exit 0 ;;
+  -h|--help|"") sed -n 2,9p "$0"; exit 0 ;;
+esac
+
+archivos=(); dirs=()
+for f in "$@"; do f=$(readlink -f -- "$f"); [ -f "$f" ] && archivos+=("$f") && dirs+=(--add-dir "$(dirname "$f")"); done
+[ ${#archivos[@]} -gt 0 ] || { notificar "Claude" "Elegí archivos (no carpetas) para renombrar" error; exit 1; }
+[ ${#archivos[@]} -gt 25 ] && archivos=("${archivos[@]:0:25}")
+[ -n "${CLAUDE_NO_ABRIR:-}" ] || notificar "Claude" "Mirando ${#archivos[@]} archivo(s)…"
+
+propuesta=$(cd "$(dirname "${archivos[0]}")" && claude --no-session-persistence -p "Proponé un nombre descriptivo para cada uno de estos archivos. Miralos con Read (imágenes, PDFs y texto se pueden leer) para saber qué son.
+Estilo: ${RENOMBRAR_ESTILO:-minúsculas, palabras separadas con guiones, sin acentos ni espacios, 3 a 7 palabras; si el contenido muestra una fecha clara, va adelante como AAAA-MM-DD}.
+Conservá la extensión tal cual. Si el nombre actual ya es bueno o no podés leer el archivo, repetí el nombre actual.
+Respondé SOLAMENTE un renglón por archivo, en el mismo orden, con este formato exacto (número, barra vertical, nombre nuevo), sin nada más:
+1|nombre-nuevo.ext
+
+$(i=0; for f in "${archivos[@]}"; do i=$((i+1)); echo "$i. $f"; done)" \
+  "${dirs[@]}" --model "${RENOMBRAR_MODELO:-sonnet}" --permission-mode dontAsk --allowedTools "Read" </dev/null 2>/dev/null)
+
+# Armo los pares viejo → nuevo, descartando lo que no cambia o no es un nombre válido.
+pares=()
+while IFS='|' read -r n nuevo; do
+  [[ "$n" =~ ^[0-9]+$ ]] && [ "$n" -ge 1 ] && [ "$n" -le ${#archivos[@]} ] || continue
+  viejo=${archivos[$((n-1))]}; nuevo=$(tr -d '/\\\n\r' <<<"$nuevo" | sed 's/^[[:space:].]*//; s/[[:space:]]*$//')
+  ext_v="${viejo##*.}"; [ "$ext_v" = "$viejo" ] && ext_v=""
+  [ -n "$ext_v" ] && [ "${nuevo##*.}" != "$ext_v" ] && nuevo="${nuevo%.*}.$ext_v"     # la extensión no se negocia
+  [ -n "$nuevo" ] && [ "$nuevo" != "$(basename "$viejo")" ] || continue
+  pares+=("$viejo" "$nuevo")
+done <<<"$propuesta"
+[ ${#pares[@]} -gt 0 ] || { notificar "Claude" "No tengo nombres mejores para proponer"; echo "Sin cambios para proponer."; exit 0; }
+
+if [ -n "${CLAUDE_NO_ABRIR:-}" ] || ! command -v zenity >/dev/null; then
+  for ((i=0; i<${#pares[@]}; i+=2)); do echo "$(basename "${pares[i]}") → ${pares[i+1]}"; done
+  [ -n "${CLAUDE_SI:-}" ] || { [ -t 0 ] && read -r -p "¿Renombro? [s/N] " r && [[ "${r,,}" == s* ]]; } || exit 0
+  elegidos=$(for ((i=0; i<${#pares[@]}; i+=2)); do echo "$i"; done)
+else
+  filas=(); for ((i=0; i<${#pares[@]}; i+=2)); do filas+=(TRUE "$i" "$(basename "${pares[i]}")" "${pares[i+1]}"); done
+  elegidos=$(zenity --list --checklist --title="Renombrar con Claude" --text="Tildá los que querés renombrar" \
+      --width=780 --height=460 --hide-column=2 --print-column=2 --separator=$'\n' \
+      --column="" --column=id --column="Ahora" --column="Nuevo nombre" "${filas[@]}" 2>/dev/null) || exit 0
+fi
+
+: > "$atras"; hechos=0
+while read -r i; do
+  [[ "$i" =~ ^[0-9]+$ ]] || continue
+  viejo=${pares[i]}; destino="$(dirname "$viejo")/${pares[i+1]}"
+  [ -e "$destino" ] && continue                      # nunca piso un archivo que ya existe
+  mv -n -- "$viejo" "$destino" && printf '%s\t%s\n' "$destino" "$viejo" >> "$atras" && hechos=$((hechos+1))
+done <<<"$elegidos"
+notificar "Claude" "Renombré $hechos archivo(s). Para volver atrás: claude-renombrar --deshacer" ok
+echo "✓ Renombré $hechos archivo(s). Para volver atrás: claude-renombrar --deshacer"

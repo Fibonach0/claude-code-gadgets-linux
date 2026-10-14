@@ -1,0 +1,108 @@
+#!/bin/bash
+# Salud de la máquina en una pantalla: disco, memoria, temperatura, batería,
+# servicios caídos, reinicio pendiente y actualizaciones. Y si algo pasa de la
+# raya, te avisa (una vez por problema, no cada hora).
+#   claude-salud               el parte ahora
+#   claude-salud --consejo     además Claude mira qué ocupa el disco y qué conviene hacer
+#   claude-salud --instalar / --desinstalar     revisa cada 15 minutos y avisa
+#
+# Config en ~/.config/claude-gadgets/config:
+#   SALUD_DISCO=90         # % de disco lleno para avisar
+#   SALUD_MEMORIA=92       # % de memoria usada
+#   SALUD_TEMP=88          # °C
+#   SALUD_BATERIA=15       # % (sólo si se está descargando)
+#   SALUD_REPETIR=24       # horas hasta repetir un aviso que sigue vigente
+export PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"
+export LANG=${LANG:-es_AR.UTF-8} LC_NUMERIC=C
+[ -f ~/.config/claude-gadgets/config ] && . ~/.config/claude-gadgets/config
+[ -f $HOME/.claude/gadgets/bin/comun.sh ] && . $HOME/.claude/gadgets/bin/comun.sh
+est=${CLAUDE_ESTADO:-$HOME/.claude/estado}; visto="$est/salud-visto"; mkdir -p "$est"
+
+case "${1:-}" in
+  --instalar) timer_instalar salud cada:900 --avisar && echo "✓ Miro la salud de la máquina cada 15 minutos"; exit 0 ;;
+  --desinstalar) timer_desinstalar salud; echo "✓ Aviso de salud apagado"; exit 0 ;;
+  -h|--help) sed -n 2,15p "$0"; exit 0 ;;
+esac
+
+# Cada chequeo agrega renglones «nivel|clave|texto» (nivel: ok, mal, dato).
+parte=""
+anotar() { parte+="$1|$2|$3"$'\n'; }
+
+# Disco: sólo sistemas de archivos de verdad.
+while read -r fs tam usado libre pct punto; do
+  p=${pct%\%}; [ -n "$p" ] || continue
+  if [ "$p" -ge "${SALUD_DISCO:-90}" ]; then anotar mal "disco:$punto" "Disco $punto al $p % (quedan $libre)"
+  else anotar ok "disco:$punto" "Disco $punto al $p % (quedan $libre)"; fi
+done < <(df -hP -x tmpfs -x devtmpfs -x squashfs -x overlay -x efivarfs 2>/dev/null | awk 'NR>1 && $1 ~ /^\// && $6 !~ /^\/(boot|snap)/')
+
+# Memoria y swap.
+read -r mt ma st sl < <(awk '/^MemTotal/{t=$2} /^MemAvailable/{a=$2} /^SwapTotal/{s=$2} /^SwapFree/{f=$2} END{print t, a, s, f}' /proc/meminfo)
+mp=$(( (mt - ma) * 100 / mt ))
+txt="Memoria al $mp % ($(( ma / 1048576 )) GB libres de $(( mt / 1048576 )))"
+[ "${st:-0}" -gt 0 ] && txt+=", swap al $(( (st - sl) * 100 / st )) %"
+[ "$mp" -ge "${SALUD_MEMORIA:-92}" ] && anotar mal memoria "$txt" || anotar ok memoria "$txt"
+
+# Temperatura: la zona más caliente.
+tmax=0
+for z in /sys/class/thermal/thermal_zone*/temp /sys/class/hwmon/hwmon*/temp*_input; do
+  [ -r "$z" ] || continue; v=$(cat "$z" 2>/dev/null); [ -n "$v" ] && [ "$v" -lt 150000 ] 2>/dev/null && [ "$v" -gt "$tmax" ] && tmax=$v
+done
+if [ "$tmax" -gt 0 ]; then t=$(( tmax / 1000 ))
+  [ "$t" -ge "${SALUD_TEMP:-88}" ] && anotar mal temperatura "Temperatura: $t °C" || anotar ok temperatura "Temperatura: $t °C"; fi
+
+# Batería.
+for b in /sys/class/power_supply/BAT*; do
+  [ -r "$b/capacity" ] || continue; c=$(cat "$b/capacity"); e=$(cat "$b/status" 2>/dev/null)
+  if [ "$e" = Discharging ] && [ "$c" -le "${SALUD_BATERIA:-15}" ]; then anotar mal bateria "Batería al $c % y descargándose"
+  else anotar ok bateria "Batería al $c % ($e)"; fi
+done
+
+# Servicios caídos.
+n=$( { systemctl list-units --state=failed --plain --no-legend 2>/dev/null; systemctl --user list-units --state=failed --plain --no-legend 2>/dev/null; } | grep -c . )
+[ "$n" -gt 0 ] && anotar mal servicios "$n unidad(es) de systemd fallando (claude-medico te dice por qué)" || anotar ok servicios "Ninguna unidad de systemd fallando"
+
+# Reinicio pendiente y actualizaciones (Debian/Ubuntu).
+if [ -f /var/run/reboot-required ]; then
+  dias=$(( ($(date +%s) - $(stat -c %Y /var/run/reboot-required)) / 86400 ))
+  [ "$dias" -ge 7 ] && anotar mal reinicio "Reinicio pendiente hace $dias días (hay actualizaciones sin aplicar)" || anotar dato reinicio "Reinicio pendiente hace $dias día(s)"
+fi
+if command -v apt >/dev/null; then
+  act=$(apt list --upgradable 2>/dev/null | grep -c / ); seg=$(apt list --upgradable 2>/dev/null | grep -c -- '-security')
+  [ "$act" -gt 0 ] && anotar dato actualizaciones "$act paquete(s) para actualizar$([ "$seg" -gt 0 ] && echo " ($seg de seguridad)")"
+fi
+anotar dato encendida "Encendida $(uptime -p 2>/dev/null | sed 's/^up //; s/ days\?/ d/; s/ hours\?/ h/; s/ minutes\?/ min/; s/,//g'), carga $(cut -d' ' -f1 /proc/loadavg) con $(nproc) núcleos"
+
+# ── Lo que corre solo ────────────────────────────────────────────────────────
+if [ "${1:-}" = --avisar ]; then
+  ahora=$(date +%s); touch "$visto"; nuevo=""
+  while IFS='|' read -r nivel clave texto; do
+    [ "$nivel" = mal ] || continue
+    cuando=$(awk -F'|' -v k="$clave" '$1 == k {print $2}' "$visto" | tail -1)
+    nuevo+="$clave|${cuando:-$ahora}"$'\n'
+    [ -n "$cuando" ] && [ $((ahora - cuando)) -lt $(( ${SALUD_REPETIR:-24} * 3600 )) ] && continue
+    nuevo=${nuevo%"$clave|"*}"$clave|$ahora"$'\n'
+    declare -f en_silencio >/dev/null && en_silencio && continue
+    notificar "Ojo con la compu" "$texto" alerta
+  done <<<"$parte"
+  printf '%s' "$nuevo" > "$visto"     # lo que ya se arregló sale de la lista y vuelve a avisar si reaparece
+  exit 0
+fi
+
+# ── A mano ───────────────────────────────────────────────────────────────────
+while IFS='|' read -r nivel clave texto; do
+  case "$nivel" in ok) printf '  \033[32m✓\033[0m %s\n' "$texto" ;; mal) printf '  \033[31m✗\033[0m %s\n' "$texto" ;; dato) printf '  · %s\n' "$texto" ;; esac
+done <<<"$parte"
+
+if [ "${1:-}" = --consejo ]; then
+  echo; echo "Mirando qué ocupa el disco…"
+  gordos=$(timeout 60 du -xh --max-depth=2 "$HOME" 2>/dev/null | sort -rh | head -25)
+  echo; claude_texto "${SALUD_MODELO:-sonnet}" "Este es el parte de salud de mi computadora y las carpetas más pesadas de mi home. Decime en pocas líneas, texto plano sin markdown, qué conviene atender primero y qué puedo limpiar sin riesgo (con el comando). Si está todo bien, decilo en una línea.
+
+<parte>
+$(cut -d'|' -f1,3 <<<"$parte")
+</parte>
+
+<carpetas>
+$gordos
+</carpetas>"
+fi

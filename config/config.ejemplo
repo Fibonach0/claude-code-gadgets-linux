@@ -98,3 +98,19 @@
 # NTFY_TOKEN=tk_…          # si tu servidor pide login
 # NTFY_OCIO=3              # minutos sin uso para considerarte ausente
 # NTFY_SIEMPRE=1           # manda siempre, estés o no
+
+# ── Salud de la máquina (claude-salud) ───────────────────────────────────────
+# SALUD_DISCO=90      # % de disco lleno para avisar
+# SALUD_MEMORIA=92    # % de memoria usada
+# SALUD_TEMP=88       # °C
+# SALUD_BATERIA=15    # % (sólo si se está descargando)
+# SALUD_REPETIR=24    # horas hasta repetir un aviso que sigue vigente
+
+# ── Portero (claude-portero) ─────────────────────────────────────────────────
+# PORTERO_CONOCIDAS=("100." "192.168.0.")   # prefijos de IP que no hace falta avisar
+# PORTERO_INTENTOS=15
+
+# ── Varios ───────────────────────────────────────────────────────────────────
+# RECORDAR_VOZ=1               # los recordatorios además se dicen en voz alta
+# RENOMBRAR_ESTILO="minúsculas con guiones, fecha AAAA-MM-DD adelante si se ve"
+# PORTAPAPELES_MODELO=sonnet   # también EXPLICA_MODELO, COMMIT_MODELO, COMO_MODELO=haiku

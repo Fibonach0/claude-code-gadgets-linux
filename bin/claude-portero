@@ -1,0 +1,61 @@
+#!/bin/bash
+# Portero: te avisa cuando alguien entra a esta máquina por SSH (quién, desde
+# dónde y cómo), y cuando hay una tanda de intentos fallidos. Si no estás en la
+# compu y tenés claude-celular, el aviso te llega al teléfono.
+#   claude-portero                 últimos ingresos e intentos (hoy)
+#   claude-portero --instalar / --desinstalar     mira cada 2 minutos
+#
+# Lee el journal de sshd: tu usuario tiene que estar en el grupo adm o
+# systemd-journal. No bloquea a nadie: sólo avisa.
+#
+# Config en ~/.config/claude-gadgets/config:
+#   PORTERO_CONOCIDAS=("100." "192.168.0.")   # prefijos de IP que no hace falta avisar (tu Tailscale, tu LAN)
+#   PORTERO_INTENTOS=15                       # intentos fallidos entre dos pasadas para avisar
+export PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"
+export LANG=${LANG:-es_AR.UTF-8}
+[ -f ~/.config/claude-gadgets/config ] && . ~/.config/claude-gadgets/config
+[ -f $HOME/.claude/gadgets/bin/comun.sh ] && . $HOME/.claude/gadgets/bin/comun.sh
+est=${CLAUDE_ESTADO:-$HOME/.claude/estado}; cursor="$est/portero-cursor"; log="$est/portero.log"; mkdir -p "$est"
+
+case "${1:-}" in
+  --instalar) timer_instalar portero cada:120 --avisar && echo "✓ Portero atento: te aviso cuando alguien entre por SSH"; exit 0 ;;
+  --desinstalar) timer_desinstalar portero; rm -f "$cursor"; echo "✓ Portero apagado"; exit 0 ;;
+  -h|--help) sed -n 2,14p "$0"; exit 0 ;;
+esac
+
+diario() { journalctl -u ssh -u sshd -t sshd -o short-iso --no-pager "$@" 2>/dev/null; }
+conocida() { local p; for p in "${PORTERO_CONOCIDAS[@]}"; do [[ $1 == "$p"* ]] && return 0; done; return 1; }
+# «… Accepted publickey for natgeo from 100.64.0.2 port 51234 ssh2…» → natgeo|100.64.0.2|publickey
+ingresos() { sed -nE 's/.*Accepted ([a-z-]+) for ([^ ]+) from ([^ ]+) port.*/\2|\3|\1/p'; }
+_fallo='Failed (password|publickey)|Invalid user|authentication failure|Connection closed by (authenticating|invalid) user'
+fallidos() { grep -cE "$_fallo"; }
+
+if [ "${1:-}" = --avisar ]; then
+  if [ -n "${PORTERO_PRUEBA:-}" ]; then nuevas=$(cat "$PORTERO_PRUEBA")        # para las pruebas
+  elif [ -s "$cursor" ]; then
+    nuevas=$(diario --after-cursor="$(cat "$cursor")" --show-cursor)
+    c=$(sed -n 's/^-- cursor: //p' <<<"$nuevas"); [ -n "$c" ] && echo "$c" > "$cursor"
+  else   # primera pasada: sólo marco desde dónde miro, sin avisar lo viejo
+    diario -n 1 --show-cursor | sed -n 's/^-- cursor: //p' > "$cursor"; exit 0
+  fi
+  while IFS='|' read -r usuario ip metodo; do
+    [ -n "$ip" ] || continue
+    printf '%s | ingreso | %s desde %s (%s)\n' "$(date '+%d/%m %H:%M')" "$usuario" "$ip" "$metodo" >> "$log"
+    conocida "$ip" && continue
+    notificar "Entraron por SSH" "$usuario desde $ip ($metodo)" alerta      # sin horario de silencio: esto es urgente
+  done < <(ingresos <<<"$nuevas")
+  n=$(fallidos <<<"$nuevas")
+  if [ "$n" -ge "${PORTERO_INTENTOS:-15}" ]; then
+    desde=$(grep -E "$_fallo" <<<"$nuevas" | grep -oE 'from [0-9a-f.:]+' | sort | uniq -c | sort -rn | head -3 | awk '{print $3 " (" $1 ")"}' | paste -sd, | sed 's/,/, /g')
+    printf '%s | intentos | %s fallidos: %s\n' "$(date '+%d/%m %H:%M')" "$n" "$desde" >> "$log"
+    notificar "Intentos de entrar por SSH" "$n intentos fallidos. Desde: ${desde:-?}" alerta
+  fi
+  exit 0
+fi
+
+hoy=$(diario --since today)
+echo "Ingresos por SSH hoy:"
+lista=$(ingresos <<<"$hoy" | sort | uniq -c | sort -rn)
+[ -n "$lista" ] && awk '{split($2, a, "|"); printf "  %s× %s desde %s (%s)\n", $1, a[1], a[2], a[3]}' <<<"$lista" || echo "  ninguno"
+echo "Intentos fallidos hoy: $(fallidos <<<"$hoy")"
+systemctl --user is-active claude-gadgets-portero.timer >/dev/null 2>&1 && echo "Portero: atento" || echo "Portero: apagado (claude-portero --instalar)"

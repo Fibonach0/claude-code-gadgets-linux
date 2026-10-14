@@ -1,10 +1,15 @@
 [Desktop Entry]
 Type=Service
 MimeType=application/octet-stream;text/plain;application/pdf;image/*;
-Actions=preguntarClaude
+Actions=preguntarClaude;renombrarClaude
 X-KDE-Priority=TopLevel
 
 [Desktop Action preguntarClaude]
 Name=Preguntarle a Claude
 Icon=dialog-question
 Exec=sh -c 'exec "$HOME/.claude/gadgets/bin/claude-archivo" "$@"' claude-archivo %F
+
+[Desktop Action renombrarClaude]
+Name=Renombrar con Claude
+Icon=edit-rename
+Exec=sh -c 'exec "$HOME/.claude/gadgets/bin/claude-renombrar" "$@"' claude-renombrar %F
