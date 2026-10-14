@@ -204,9 +204,13 @@ UNIDAD
 }
 
 timer_desinstalar() {
-  local u="claude-gadgets-$1" x
+  local u="claude-gadgets-$1" x yo=
+  # Si lo llama el propio servicio (p. ej. recordar sin pendientes), no hay que
+  # pararlo: systemd lo mataría antes de terminar de limpiar.
+  grep -q "/$u.service" /proc/self/cgroup 2>/dev/null && yo=1
   # De a una: si alguna no existe, las demás se apagan igual.
-  for x in timer path service; do
+  for x in timer path ${yo:+_}service; do
+    [ "$x" = _service ] && continue
     systemctl --user disable --now "$u.$x" >/dev/null 2>&1
     systemctl --user stop "$u.$x" >/dev/null 2>&1
   done
