@@ -5,7 +5,7 @@
 # texto para pegar (traducción, corrección, respuesta), ya queda copiada.
 #   claude-portapapeles                 menú sobre lo seleccionado (o lo copiado)
 #   claude-portapapeles traducir        directo, sin menú: explicar | resumir |
-#                                       traducir | ingles | corregir | responder
+#                                       traducir | ingles | corregir | responder | leer
 #   claude-portapapeles --instalar [atajo]    atajo en GNOME (<Shift><Super>x)
 #   claude-portapapeles --desinstalar
 # Config: PORTAPAPELES_MODELO=sonnet
@@ -32,7 +32,7 @@ if [ -z "$accion" ]; then
   accion=$(zenity --list --title="Claude" --text="«$muestra…»" --width=440 --height=380 --hide-header \
       --hide-column=1 --print-column=1 --column=id --column="¿Qué hago?" \
       explicar "Explicámelo" resumir "Resumilo" traducir "Traducilo al castellano" ingles "Traducilo al inglés" \
-      corregir "Corregí la redacción" responder "Escribí una respuesta" otra "Otra cosa…" 2>/dev/null) || exit 0
+      corregir "Corregí la redacción" responder "Escribí una respuesta" leer "Leémelo en voz alta" otra "Otra cosa…" 2>/dev/null) || exit 0
 fi
 
 pegable=0
@@ -43,6 +43,7 @@ case "$accion" in
   ingles)    pedido="Traducí esto a un inglés natural. Respondé sólo con la traducción."; pegable=1 ;;
   corregir)  pedido="Corregí ortografía, puntuación y redacción sin cambiar el tono ni el sentido. Respondé sólo con el texto corregido, en su mismo idioma."; pegable=1 ;;
   responder) pedido="Esto es un mensaje que recibí. Escribí una respuesta breve y cordial en el mismo idioma, lista para enviar. Respondé sólo con el texto de la respuesta."; pegable=1 ;;
+  leer)      hablar "$texto"; exit ;;
   otra)      pedido=$(zenity --entry --title="Claude" --width=520 --text="¿Qué hago con ese texto?" 2>/dev/null) || exit 0
              [ -n "$pedido" ] || exit 0 ;;
   *)         pedido="$*" ;;     # cualquier otra cosa es el pedido tal cual

@@ -1,0 +1,49 @@
+#!/bin/bash
+# Al terminar: espera a que NINGUNA sesión de Claude Code esté trabajando y
+# recién ahí avisa (al teléfono también, si no estás) o hace lo que le pidas.
+# Para dejar a Claude trabajando e irte.
+#   claude-alterminar                    avisa cuando todas terminaron
+#   claude-alterminar suspender          además suspende la compu
+#   claude-alterminar apagar             además la apaga
+#   claude-alterminar -- comando…        corre ese comando
+#   claude-alterminar … &                en segundo plano, para seguir usando la terminal
+# Una sesión que te está esperando (pide permiso, pregunta algo) NO cuenta como
+# terminada: mientras haya alguna así, no suspende ni apaga; te avisa.
+export PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"
+[ -f ~/.config/claude-gadgets/config ] && . ~/.config/claude-gadgets/config
+[ -f $HOME/.claude/gadgets/bin/comun.sh ] && . $HOME/.claude/gadgets/bin/comun.sh
+est=${CLAUDE_ESTADO:-$HOME/.claude/estado}
+case "${1:-}" in -h|--help) sed -n 2,11p "$0"; exit 0 ;; esac
+accion=${1:-avisar}; [ "$accion" = -- ] && { accion=comando; shift; }
+
+contar() {  # cuántas sesiones hay en ese estado (las «trabajando» de más de 2 h se consideran colgadas)
+  local n=0 f e ts ahora; ahora=$(date +%s)
+  for f in "$est"/sesion-*.json; do
+    [ -f "$f" ] || continue
+    read -r e ts < <(jq -r '"\(.estado) \(.ts // 0)"' "$f" 2>/dev/null)
+    [ "$e" = "$1" ] || continue
+    [ "$1" = trabajando ] && [ $((ahora - ts)) -gt 7200 ] && continue
+    n=$((n + 1))
+  done
+  echo "$n"
+}
+
+echo "Esperando a que terminen $(contar trabajando) sesión(es)… (Ctrl+C para cancelar)"
+quietas=0; avisado=0
+while :; do
+  t=$(contar trabajando); e=$(contar esperando)
+  if [ "$t" = 0 ] && [ "$e" = 0 ]; then quietas=$((quietas + 1)); else quietas=0; fi
+  if [ "$t" = 0 ] && [ "$e" != 0 ] && [ $avisado = 0 ]; then
+    NTFY_SIEMPRE=1 notificar "Claude te está esperando" "$e sesión(es) necesitan que contestes antes de terminar" aviso; avisado=1
+  fi
+  [ "$t" != 0 ] && avisado=0
+  [ $quietas -ge 3 ] && break            # 30 segundos seguidos sin nadie trabajando
+  sleep "${ALTERMINAR_CADA:-10}"
+done
+
+NTFY_SIEMPRE=1 notificar "Claude terminó" "No queda ninguna sesión trabajando" listo
+case "$accion" in
+  suspender) echo "Suspendo en 20 segundos (Ctrl+C para cancelar)…"; sleep 20; systemctl suspend ;;
+  apagar)    echo "Apago en 60 segundos (Ctrl+C para cancelar)…";   sleep 60; systemctl poweroff ;;
+  comando)   "$@" ;;
+esac
