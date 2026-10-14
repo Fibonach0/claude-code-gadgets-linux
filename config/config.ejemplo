@@ -98,6 +98,9 @@
 # NTFY_TOKEN=tk_…          # si tu servidor pide login
 # NTFY_OCIO=3              # minutos sin uso para considerarte ausente
 # NTFY_SIEMPRE=1           # manda siempre, estés o no
+# CONTROL_TEMA=…           # lo escribe claude-control --instalar (órdenes desde el teléfono)
+# CONTROL_MODELO=sonnet
+# AVISAME_MODELO=haiku     # el que explica por qué falló un `avisame`
 
 # ── Salud de la máquina (claude-salud) ───────────────────────────────────────
 # SALUD_DISCO=90      # % de disco lleno para avisar

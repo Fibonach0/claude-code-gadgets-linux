@@ -1,0 +1,129 @@
+#!/bin/bash
+# Control remoto desde el celular: le escribís a la compu desde la app ntfy y te
+# contesta en el teléfono. Usa el mismo ntfy que claude-celular, con un segundo
+# tema sólo para tus órdenes.
+#
+#   claude-control --instalar      prende el servicio y te dice a qué tema escribir
+#   claude-control --estado
+#   claude-control --desinstalar
+#
+# Qué le podés mandar (desde la app: abrís el tema de órdenes y escribís):
+#   estado                         salud de la máquina
+#   recordame en 20 minutos …      recordatorio en la compu (y al teléfono)
+#   anotá llamar al contador       pendiente a tu lista
+#   pendientes                     los últimos pendientes
+#   decí la comida está lista      lo dice en voz alta en la compu
+#   bloquear                       bloquea la pantalla
+#   ayuda                          esta lista
+#   cualquier otra cosa            se la pregunta a Claude y te manda la respuesta
+#
+# Prudencia: quien conozca el tema de órdenes puede mandarle cosas. Por eso es
+# largo y al azar, y Claude contesta SIN herramientas: no lee tus archivos ni
+# corre comandos; sólo hace lo de la lista de arriba.
+# Config: CONTROL_MODELO=sonnet
+export PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"
+export LANG=${LANG:-es_AR.UTF-8}
+conf=$HOME/.config/claude-gadgets/config
+[ -f "$conf" ] && . "$conf"
+[ -f $HOME/.claude/gadgets/bin/comun.sh ] && . $HOME/.claude/gadgets/bin/comun.sh
+B="$HOME/.claude/gadgets/bin"
+est=${CLAUDE_ESTADO:-$HOME/.claude/estado}; cursor="$est/control-cursor"; mkdir -p "$est"
+srv=${NTFY_SERVIDOR:-https://ntfy.sh}
+unidad=claude-gadgets-control.service
+u_archivo="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/$unidad"
+
+contestar() { NTFY_ESPERAR=1 al_celular "${2:-Compu}" "$1" || echo "no pude contestar: $1" >&2; }
+
+atender() {  # un mensaje → una respuesta
+  local m="$1" orden resto r
+  orden=$(printf '%s' "${m%% *}" | tr '[:upper:]' '[:lower:]' | sed 's/[¡!¿?.,]//g')
+  resto=${m#"${m%% *}"}; resto=${resto# }
+  case "$orden" in
+    ayuda|hola|"")
+      contestar "estado · recordame <cuándo> <qué> · anotá <algo> · pendientes · decí <texto> · bloquear · o preguntame lo que sea" "Qué puedo hacer" ;;
+    estado|salud)
+      contestar "$("$B/claude-salud" 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | head -25)" "Salud de la compu" ;;
+    recordame|recordá|recorda|recordar)
+      contestar "$("$B/claude-recordar" $resto 2>&1 | tail -1)" "Recordatorio" ;;
+    anotá|anota|anotar)
+      contestar "$("$B/claude-anotar" "$resto" 2>&1 | tail -1)" "Anotado" ;;
+    pendientes)
+      r=$("$B/claude-anotar" --ver 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | tail -15)
+      contestar "${r:-No tenés pendientes anotados.}" "Pendientes" ;;
+    decí|deci|decir|hablá|habla)
+      if [ -n "$resto" ] && hablar "$resto" >/dev/null 2>&1; then contestar "Lo dije en voz alta." "Compu"
+      else contestar "No pude decirlo (¿hay parlantes o spd-say?)." "Compu"; fi ;;
+    bloquear|bloqueá|bloquea)
+      s=$(loginctl show-user "$(id -un)" -p Display --value 2>/dev/null)
+      [ -n "$s" ] && loginctl lock-session "$s" 2>/dev/null && contestar "Pantalla bloqueada." "Compu" || contestar "No pude bloquearla." "Compu" ;;
+    *)
+      r=$(claude_texto "${CONTROL_MODELO:-sonnet}" "Te escriben desde el celular. Contestá en castellano rioplatense, corto (pocas frases), en texto plano sin markdown, porque llega como notificación. Pregunta: $m")
+      contestar "${r:-No me salió una respuesta. Probá de nuevo.}" "Claude" ;;
+  esac
+}
+
+escuchar() {  # mantiene abierta la conexión con ntfy; systemd lo reinicia si se cae
+  [ -n "${CONTROL_TEMA:-}" ] || { echo "Falta CONTROL_TEMA: corré claude-control --instalar" >&2; exit 1; }
+  local desde id m
+  desde=$(cat "$cursor" 2>/dev/null); [ -n "$desde" ] || desde=$(date +%s)   # la primera vez, sólo lo nuevo
+  curl -fsSN ${NTFY_TOKEN:+-H "Authorization: Bearer $NTFY_TOKEN"} "$srv/$CONTROL_TEMA/json?since=$desde" \
+  | while IFS= read -r linea; do
+      [ "$(jq -r .event <<<"$linea" 2>/dev/null)" = message ] || continue
+      id=$(jq -r .id <<<"$linea"); m=$(jq -r '.message // ""' <<<"$linea")
+      echo "$id" > "$cursor"           # antes de atender: si algo se cuelga, no se repite al volver
+      printf '%s  %s\n' "$(date '+%F %T')" "$m" >> "$est/control.log"
+      atender "$m"
+    done
+}
+
+case "${1:-}" in
+  --instalar)
+    [ -n "${NTFY_TEMA:-}" ] || { echo "Primero prendé los avisos: claude-celular --instalar"; exit 1; }
+    command -v jq >/dev/null && command -v curl >/dev/null || { echo "Hace falta: sudo apt install curl jq"; exit 1; }
+    if [ -z "${CONTROL_TEMA:-}" ]; then
+      CONTROL_TEMA="claude-ordenes-$(tr -dc 'a-z0-9' < /dev/urandom | head -c 24)"
+      printf '\n# Control remoto desde el celular (claude-control)\nCONTROL_TEMA=%s\n' "$CONTROL_TEMA" >> "$conf"
+    fi
+    mkdir -p "$(dirname "$u_archivo")"
+    cat > "$u_archivo" <<UNIDAD
+[Unit]
+Description=Claude Code Gadgets: control remoto desde el celular
+After=network-online.target
+
+[Service]
+ExecStart=%h/.claude/gadgets/bin/claude-control --escuchar
+Restart=always
+RestartSec=20
+StandardError=append:%h/.claude/estado/control.err
+
+[Install]
+WantedBy=default.target
+UNIDAD
+    systemctl --user daemon-reload && systemctl --user enable --now "$unidad" >/dev/null 2>&1 \
+      || { echo "No pude prender el servicio (systemctl --user)."; exit 1; }
+    cat <<EOF
+✓ Control remoto prendido
+
+En la app ntfy del teléfono:
+  1. Tocá «+» y suscribite a:  $CONTROL_TEMA
+  2. Abrilo y escribí abajo, por ejemplo:  estado
+  La respuesta te llega en tu tema de avisos ($NTFY_TEMA).
+
+Escribí «ayuda» para ver todo lo que entiende.
+EOF
+    exit 0 ;;
+  --desinstalar)
+    systemctl --user disable --now "$unidad" >/dev/null 2>&1
+    rm -f "$u_archivo" "$cursor"; systemctl --user daemon-reload
+    [ -f "$conf" ] && sed -i '/^# Control remoto desde el celular (claude-control)$/d; /^CONTROL_TEMA=/d' "$conf"
+    echo "✓ Control remoto apagado"; exit 0 ;;
+  --estado)
+    [ -n "${CONTROL_TEMA:-}" ] || { echo "Apagado. Para prenderlo: claude-control --instalar"; exit 0; }
+    echo "Tema de órdenes: $CONTROL_TEMA ($srv)"
+    systemctl --user is-active "$unidad" >/dev/null && echo "Escuchando." || echo "El servicio no está corriendo."
+    [ -s "$est/control.log" ] && { echo "Últimas órdenes:"; tail -5 "$est/control.log"; }
+    exit 0 ;;
+  --escuchar) escuchar; exit ;;
+  --probar) shift; atender "$*"; exit ;;     # atiende una orden sin pasar por ntfy
+  *) sed -n 2,22p "$0"; exit 0 ;;
+esac

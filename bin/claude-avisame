@@ -1,0 +1,44 @@
+#!/bin/bash
+# Avisame cuando termine: corre un comando largo y, al terminar, te avisa en la
+# compu o en el teléfono si no estás. Si falló, Claude lee el final de la salida
+# y te dice por qué en una frase.
+#
+#   avisame make build
+#   avisame ./deploy.sh produccion
+#   avisame -- rsync -a fotos/ /media/disco/
+#
+# La salida se ve igual en la terminal; se guardan las últimas líneas sólo para
+# el diagnóstico. Config: AVISAME_MODELO=haiku
+export LANG=${LANG:-es_AR.UTF-8}
+[ -f ~/.config/claude-gadgets/config ] && . ~/.config/claude-gadgets/config
+[ -f $HOME/.claude/gadgets/bin/comun.sh ] && . $HOME/.claude/gadgets/bin/comun.sh
+[ "${1:-}" = -- ] && shift
+case "${1:-}" in -h|--help|"") sed -n 2,11p "$0"; exit 0 ;; esac
+
+cmd="$*"; ini=$(date +%s)
+salida=$(mktemp); trap 'rm -f "$salida"' EXIT
+"$@" 2>&1 | tee "$salida"
+codigo=${PIPESTATUS[0]}
+dur=$(( $(date +%s) - ini ))
+if   [ $dur -ge 3600 ]; then tiempo="$((dur/3600)) h $((dur%3600/60)) min"
+elif [ $dur -ge 60 ];   then tiempo="$((dur/60)) min $((dur%60)) s"
+else tiempo="$dur s"; fi
+
+if [ "$codigo" = 0 ]; then
+  titulo="✓ Terminó bien"; texto="$cmd · $tiempo"; sonido=listo
+else
+  titulo="✗ Falló ($codigo)"; sonido=error
+  por=$(claude_texto "${AVISAME_MODELO:-haiku}" "Este comando terminó con código $codigo. En UNA frase corta en castellano rioplatense, sin markdown: por qué falló y qué hacer. Comando: $cmd
+Final de la salida:
+$(tail -c 6000 "$salida")")
+  texto="$cmd · $tiempo${por:+
+$por}"
+fi
+
+if [ -n "${NTFY_TEMA:-}" ] && { [ "${NTFY_SIEMPRE:-0}" = 1 ] || ausente; }; then
+  NTFY_ESPERAR=1 al_celular "$titulo" "$texto"
+fi
+notificar "$titulo" "$texto" "$sonido"
+printf '\n\033[1m%s\033[0m · %s\n' "$titulo" "$tiempo" >&2
+[ "$codigo" = 0 ] || [ -z "${por:-}" ] || printf '%s\n' "$por" >&2
+exit "$codigo"
