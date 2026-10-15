@@ -1,0 +1,79 @@
+#!/bin/bash
+# Ordenar Descargas: Claude mira los nombres de lo suelto en tu carpeta de
+# Descargas y propone en qué subcarpeta va cada cosa (Facturas, Fotos,
+# Instaladores…). Vos tildás qué mover; nada se mueve sin tu OK.
+#   claude-descargas                 ordena tu carpeta de Descargas
+#   claude-descargas otra/carpeta    ordena esa
+#   claude-descargas --deshacer      vuelve todo a donde estaba
+# Claude sólo ve NOMBRES, tamaños y tipos, no el contenido. Hasta 80 por vez.
+# Config: DESCARGAS_MODELO=sonnet
+export PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"
+[ -f $HOME/.config/claude-gadgets/config ] && . $HOME/.config/claude-gadgets/config
+[ -f $HOME/.claude/gadgets/bin/comun.sh ] && . $HOME/.claude/gadgets/bin/comun.sh
+cache="${XDG_CACHE_HOME:-$HOME/.cache}/claude-gadgets"; mkdir -p "$cache"; atras="$cache/descargas-deshacer"
+
+case "${1:-}" in
+  --deshacer)
+    [ -s "$atras" ] || { echo "No hay nada para deshacer."; exit 0; }
+    n=0
+    while IFS=$'\t' read -r nuevo viejo; do
+      [ "$nuevo" = CARPETA ] && continue
+      [ -e "$nuevo" ] && [ ! -e "$viejo" ] && mv -n -- "$nuevo" "$viejo" && n=$((n+1))
+    done < "$atras"
+    grep $'^CARPETA\t' "$atras" | cut -f2 | while IFS= read -r d; do rmdir -- "$d" 2>/dev/null; done   # sólo las que creé yo, si quedaron vacías
+    rm -f "$atras"; echo "✓ Volví $n archivo(s) a su lugar"; exit 0 ;;
+  -h|--help) sed -n 2,9p "$0"; exit 0 ;;
+esac
+
+base=${1:-$(xdg-user-dir DOWNLOAD 2>/dev/null)}
+{ [ -n "$base" ] && [ "$base" != "$HOME" ] && [ -d "$base" ]; } || base="$HOME/Descargas"; [ -d "$base" ] || base="$HOME/Downloads"
+base=$(readlink -f -- "$base"); [ -d "$base" ] || { echo "No encuentro la carpeta de Descargas."; exit 1; }
+
+archivos=()
+while IFS= read -r -d '' f; do
+  case "$f" in *.crdownload|*.part|*.tmp|*/.*) continue ;; esac     # a medio bajar u ocultos
+  archivos+=("$f")
+done < <(find "$base" -maxdepth 1 -type f -print0 | sort -z)
+[ ${#archivos[@]} -gt 0 ] || { echo "No hay nada suelto en $base."; notificar "Descargas" "Ya está ordenada"; exit 0; }
+[ ${#archivos[@]} -gt 80 ] && archivos=("${archivos[@]:0:80}")
+carpetas=$(find "$base" -mindepth 1 -maxdepth 1 -type d ! -name '.*' -printf '%f\n' | sort | paste -sd, -)
+[ -n "${CLAUDE_NO_ABRIR:-}" ] || notificar "Claude" "Mirando ${#archivos[@]} archivo(s) de $(basename "$base")…"
+
+propuesta=$(claude_texto "${DESCARGAS_MODELO:-sonnet}" "Ordená una carpeta de Descargas. Para cada archivo decí en qué subcarpeta va, según su nombre, tipo y tamaño.
+Usá las subcarpetas que ya existen cuando corresponda (${carpetas:-no hay ninguna}). Si hace falta una nueva, nombre corto en castellano con mayúscula inicial (Facturas, Fotos, Instaladores, Documentos, Planillas, Videos, Música, Comprimidos…). Pocas carpetas, no una por archivo.
+Si no sabés qué es, respondé -- para dejarlo donde está.
+Respondé SOLAMENTE un renglón por archivo, en el mismo orden: número, barra vertical, carpeta. Nada más.
+1|Facturas
+
+$(i=0; for f in "${archivos[@]}"; do i=$((i+1)); printf '%d. %s (%s, %s)\n' "$i" "$(basename "$f")" "$(file -b --mime-type -- "$f")" "$(du -h -- "$f" | cut -f1)"; done)")
+
+pares=()
+while IFS='|' read -r n dest; do
+  [[ "$n" =~ ^[0-9]+$ ]] && [ "$n" -ge 1 ] && [ "$n" -le ${#archivos[@]} ] || continue
+  dest=$(tr -d '/\\\r' <<<"$dest" | sed 's/^[[:space:].]*//; s/[[:space:]]*$//')
+  [ -n "$dest" ] && [ "$dest" != "--" ] || continue
+  pares+=("${archivos[$((n-1))]}" "$dest")
+done <<<"$propuesta"
+[ ${#pares[@]} -gt 0 ] || { echo "No tengo nada para proponer."; exit 0; }
+
+if [ -n "${CLAUDE_NO_ABRIR:-}" ] || ! command -v zenity >/dev/null || [ -z "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; then
+  for ((i=0; i<${#pares[@]}; i+=2)); do printf '  %-50s → %s/\n' "$(basename "${pares[i]}")" "${pares[i+1]}"; done
+  [ -n "${CLAUDE_SI:-}" ] || { [ -t 0 ] && read -r -p "¿Muevo todo? [s/N] " r && [[ "${r,,}" == s* ]]; } || exit 0
+  elegidos=$(for ((i=0; i<${#pares[@]}; i+=2)); do echo "$i"; done)
+else
+  filas=(); for ((i=0; i<${#pares[@]}; i+=2)); do filas+=(TRUE "$i" "$(basename "${pares[i]}")" "${pares[i+1]}"); done
+  elegidos=$(zenity --list --checklist --title="Ordenar $(basename "$base")" --text="Tildá lo que querés mover" \
+      --width=820 --height=520 --hide-column=2 --print-column=2 --separator=$'\n' \
+      --column="" --column=id --column="Archivo" --column="Va a" "${filas[@]}" 2>/dev/null) || exit 0
+fi
+
+: > "$atras"; hechos=0
+while read -r i; do
+  [[ "$i" =~ ^[0-9]+$ ]] || continue
+  viejo=${pares[i]}; destino="$base/${pares[i+1]}/$(basename "$viejo")"
+  [ -e "$destino" ] && continue                      # nunca piso nada
+  [ -d "$base/${pares[i+1]}" ] || { mkdir -p -- "$base/${pares[i+1]}" && printf 'CARPETA\t%s\n' "$base/${pares[i+1]}" >> "$atras"; }
+  mv -n -- "$viejo" "$destino" && printf '%s\t%s\n' "$destino" "$viejo" >> "$atras" && hechos=$((hechos+1))
+done <<<"$elegidos"
+notificar "Descargas" "Moví $hechos archivo(s). Para volver atrás: claude-descargas --deshacer" ok
+echo "✓ Moví $hechos archivo(s). Para volver atrás: claude-descargas --deshacer"

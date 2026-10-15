@@ -1,0 +1,6 @@
+#!/bin/bash
+# Script del administrador de archivos (Nautilus, Nemo, Caja): resume el archivo
+# elegido (PDF, documento, texto) y lo muestra en una ventana.
+sel=${NAUTILUS_SCRIPT_SELECTED_FILE_PATHS:-${NEMO_SCRIPT_SELECTED_FILE_PATHS:-${CAJA_SCRIPT_SELECTED_FILE_PATHS:-}}}
+f=$(head -1 <<<"$sel"); [ -n "$f" ] || f=${1:-}
+exec "$HOME/.claude/gadgets/bin/claude-resumir" --ventana "$f"

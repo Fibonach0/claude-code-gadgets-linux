@@ -1,7 +1,7 @@
 # Claude Code Gadgets para Linux
 
 Accesorios para usar [Claude Code](https://claude.com/claude-code) en Debian, Ubuntu y derivados (y desde el celular).
-Se instalan con un comando y se desinstalan con otro. Es el port de
+Se instalan con un comando y se desinstalan con otro. **El catálogo completo, por cómo se usa cada uno: [GADGETS.md](GADGETS.md).** Es el port de
 [claude-code-gadgets-macos](https://github.com/Fibonach0/claude-code-gadgets-macos): mismos gadgets, misma config.
 
 | Gadget | Qué hace |
@@ -24,6 +24,9 @@ Se instalan con un comando y se desinstalan con otro. Es el port de
 | **Avisos al celular** | `claude-celular --instalar`: si Claude te queda esperando, falla un servicio o se acaba el cupo y **no estás en la compu** (pantalla bloqueada o sin tocarla hace 3 minutos), el aviso te llega al teléfono por [ntfy](https://ntfy.sh). Crea un tema secreto al azar y te dice cómo suscribirte. El texto del aviso pasa por ntfy.sh (o por tu servidor: `NTFY_SERVIDOR`). |
 | **Control remoto** | `claude-control --instalar` (después de `claude-celular`): le escribís a la compu desde la app ntfy y te contesta en el teléfono. Entiende `estado`, `recordame en 20 minutos …`, `anotá …`, `pendientes`, `decí …` (lo dice en voz alta), `bloquear`, y cualquier otra cosa se la pregunta a Claude **sin herramientas**: no lee tus archivos ni corre comandos. |
 | **Avisame** | `avisame make build`: corre un comando largo y al terminar te avisa (al teléfono si no estás). Si falló, Claude lee el final de la salida y te dice por qué en una frase. Respeta el código de salida. |
+| **Vigía de internet** | `claude-red`: el parte de la red (latencia, DNS, router, IP pública, wifi, Tailscale). `--instalar` mira cada minuto y, cuando vuelve internet, te dice cuánto duró el corte; `--cortes` muestra el historial. |
+| **Ordenar Descargas** | `claude-descargas`: Claude mira los nombres de lo suelto en Descargas y propone subcarpetas (Facturas, Fotos, Instaladores…). Tildás qué mover; `--deshacer` vuelve todo atrás. No lee el contenido. |
+| **Resumir** | `claude-resumir link\|archivo`: resume una página, PDF, Word o texto; `-p "pregunta"` le pregunta algo puntual. También clic derecho → *Scripts* → **Resumir con Claude**, y en el menú de gadgets resume el link copiado. |
 | **Médico de servicios** | `claude-medico`: cuando una unidad de systemd falla o queda reiniciándose en bucle (del sistema o tuya), Claude lee el journal y te avisa con la causa y qué hacer. `--instalar` lo deja mirando cada 5 minutos; a mano muestra lo que está mal ahora, y `claude-medico nginx` diagnostica una unidad puntual. Avisa una vez por falla y sólo lee. |
 | **Captura → Claude** | `claude-captura`: recortás un pedazo de pantalla (un error, un gráfico, un mail), preguntás y la respuesta aparece en una ventanita, con botón para copiarla. `claude-captura --instalar` le pone un atajo en GNOME (`Súper+Mayús+C`; otro: `--instalar '<Control><Alt>c'`). Recorta con lo que tengas: flameshot, gnome-screenshot, spectacle, el portal de escritorio… Claude sólo lee esa imagen. |
 | **Ulauncher** | Si usás [Ulauncher](https://ulauncher.io): `c ¿cuánto es 30 dólares en pesos?` + Enter y la respuesta aparece en el lanzador (y como notificación, por si lo cerraste). Enter sobre la respuesta la copia; `c ` a secas muestra la última. La palabra clave se cambia en las preferencias de Ulauncher. Usa `claude-siri`: respuestas cortas, sólo lectura y web. |

@@ -9,6 +9,7 @@
 #
 # Qué le podés mandar (desde la app: abrís el tema de órdenes y escribís):
 #   estado                         salud de la máquina
+#   red                            cómo anda internet en casa
 #   recordame en 20 minutos …      recordatorio en la compu (y al teléfono)
 #   anotá llamar al contador       pendiente a tu lista
 #   pendientes                     los últimos pendientes
@@ -40,7 +41,9 @@ atender() {  # un mensaje → una respuesta
   resto=${m#"${m%% *}"}; resto=${resto# }
   case "$orden" in
     ayuda|hola|"")
-      contestar "estado · recordame <cuándo> <qué> · anotá <algo> · pendientes · decí <texto> · bloquear · o preguntame lo que sea" "Qué puedo hacer" ;;
+      contestar "estado · red · recordame <cuándo> <qué> · anotá <algo> · pendientes · decí <texto> · bloquear · o preguntame lo que sea" "Qué puedo hacer" ;;
+    red|internet)
+      contestar "$("$B/claude-red" 2>&1 | sed 's/\x1b\[[0-9;]*m//g')" "Internet en casa" ;;
     estado|salud)
       contestar "$("$B/claude-salud" 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | head -25)" "Salud de la compu" ;;
     recordame|recordá|recorda|recordar)
