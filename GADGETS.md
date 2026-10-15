@@ -58,7 +58,7 @@ notificación; si no estás en la compu y tenés **avisos al celular**, el aviso
 | Gadget | Qué hace |
 |---|---|
 | **Avisos al celular** (`claude-celular --instalar`) | Si Claude te queda esperando, falla un servicio, se corta internet o se acaba el cupo **y no estás en la compu**, te llega al teléfono por la app [ntfy](https://ntfy.sh). |
-| **Control remoto** (`claude-control --instalar`) | Le escribís a la compu desde la app ntfy y te contesta. Entiende: `estado`, `red`, `recordame en 20 minutos …`, `anotá …`, `pendientes`, `decí …` (lo dice en voz alta en la compu), `bloquear`, `ayuda`. Cualquier otra cosa se la pregunta a Claude, que contesta **sin herramientas**: no lee tus archivos ni corre comandos. |
+| **Control remoto** (`claude-control --instalar`) | Le escribís a la compu desde la app ntfy y te contesta. Entiende: `estado`, `red`, `recordame en 20 minutos …`, `anotá …`, `pendientes`, `decí …` (lo dice en voz alta en la compu), `bloquear`, `ayuda`. Cualquier otra cosa se la pregunta a Claude, que contesta **sin herramientas**: no lee tus archivos ni corre comandos. **También le podés mandar una nota de voz** (el clip de la app ntfy): la transcribe en la compu y hace lo que dijiste. |
 | **Pregunta rápida** (`claude-siri "…"`) | Respuesta corta para leer en voz alta, por SSH desde un Atajo del iPhone o desde Android (Termux, Tasker). Ver [docs/CELULAR.md](docs/CELULAR.md). |
 | **Estado** (`claude-estado`) | Servicios, qué se mergeó hoy, PRs abiertos y cupo, en una pantalla corta. |
 | **Anotar** (`claude-anotar "…"`) | Guarda un pendiente con fecha y proyecto; lo clasifica solo. Para dictar. |

@@ -17,6 +17,7 @@
 #   bloquear                       bloquea la pantalla
 #   ayuda                          esta lista
 #   cualquier otra cosa            se la pregunta a Claude y te manda la respuesta
+#   una nota de voz                la paso a texto (claude-dictar) y hago lo que diga
 #
 # Prudencia: quien conozca el tema de órdenes puede mandarle cosas. Por eso es
 # largo y al azar, y Claude contesta SIN herramientas: no lee tus archivos ni
@@ -74,6 +75,14 @@ escuchar() {  # mantiene abierta la conexión con ntfy; systemd lo reinicia si s
       [ "$(jq -r .event <<<"$linea" 2>/dev/null)" = message ] || continue
       id=$(jq -r .id <<<"$linea"); m=$(jq -r '.message // ""' <<<"$linea")
       echo "$id" > "$cursor"           # antes de atender: si algo se cuelga, no se repite al volver
+      adj=$(jq -r 'select(.attachment.type // "" | startswith("audio/")) | .attachment.url' <<<"$linea")
+      if [ -n "$adj" ]; then           # una nota de voz: la paso a texto y la atiendo como si la hubieras escrito
+        audio="$est/control-audio"; rm -f "$audio"
+        if curl -fsS -m 90 --max-filesize 25000000 -o "$audio" -- "$adj" && m=$("$B/claude-dictar" "$audio" 2>/dev/null) && [ -n "$m" ]; then
+          contestar "«$m»" "Escuché"
+        else contestar "No pude entender el audio." "Compu"; rm -f "$audio"; continue; fi
+        rm -f "$audio"
+      fi
       printf '%s  %s\n' "$(date '+%F %T')" "$m" >> "$est/control.log"
       atender "$m"
     done
