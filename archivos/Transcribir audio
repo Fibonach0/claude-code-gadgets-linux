@@ -1,0 +1,10 @@
+#!/bin/bash
+# Script del administrador de archivos (Nautilus, Nemo, Caja): pasa a texto un audio
+# (notas de voz de WhatsApp, grabaciones) y lo muestra en una ventana, ya copiado.
+sel=${NAUTILUS_SCRIPT_SELECTED_FILE_PATHS:-${NEMO_SCRIPT_SELECTED_FILE_PATHS:-${CAJA_SCRIPT_SELECTED_FILE_PATHS:-}}}
+f=$(head -1 <<<"$sel"); [ -n "$f" ] || f=${1:-}
+. "$HOME/.claude/gadgets/bin/comun.sh"
+cache="${XDG_CACHE_HOME:-$HOME/.cache}/claude-gadgets"; mkdir -p "$cache"
+notificar "Transcribiendo" "$(basename "$f")…"
+if "$HOME/.claude/gadgets/bin/claude-dictar" "$f" > "$cache/transcripcion.txt" 2>&1; then copiar < "$cache/transcripcion.txt"; fi
+ventana "Audio · $(basename "$f")" "$cache/transcripcion.txt"

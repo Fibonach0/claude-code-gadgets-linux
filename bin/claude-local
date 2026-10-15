@@ -1,0 +1,29 @@
+#!/bin/bash
+# Claude sin cupo: le pregunta a un modelo LOCAL (Ollama) en vez de a Claude. Gratis,
+# sin internet y nada sale de la compu. Más tonto que Claude, pero para traducir,
+# reescribir o una duda rápida alcanza, y sirve cuando se te acabó el cupo.
+#   claude-local "¿cómo se dice destornillador en inglés?"
+#   cat texto.txt | claude-local "resumilo"
+#   claude-local --modelos          qué modelos tenés
+# Config: OLLAMA_URL=http://127.0.0.1:11434 · LOCAL_MODELO=qwen2.5:3b
+export PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"
+[ -f $HOME/.config/claude-gadgets/config ] && . $HOME/.config/claude-gadgets/config
+url=${OLLAMA_URL:-http://127.0.0.1:11434}
+
+curl -fsS -m 3 "$url/api/version" >/dev/null 2>&1 || { echo "Ollama no responde en $url (¿está corriendo? ollama serve)"; exit 1; }
+case "${1:-}" in
+  --modelos) curl -fsS "$url/api/tags" | jq -r '.models[] | "\(.name)\t\(.size/1e9*10|floor/10) GB"'; exit 0 ;;
+  -h|--help|"") [ -t 0 ] && { sed -n 2,9p "$0"; exit 0; } ;;
+esac
+modelo=${LOCAL_MODELO:-$(curl -fsS "$url/api/tags" | jq -r '.models[0].name // empty')}
+[ -n "$modelo" ] || { echo "No hay modelos en Ollama: ollama pull qwen2.5:3b"; exit 1; }
+
+pedido="$*"; [ -t 0 ] || { entrada=$(head -c 40000); pedido="${pedido:-Resumilo}
+
+$entrada"; }
+jq -n --arg m "$modelo" --arg p "$pedido" '{model: $m, stream: true, messages: [
+    {role: "system", content: "Sos un asistente útil y preciso. Si te piden traducir, traducí exactamente al idioma pedido. Si no, contestá en español, corto y claro, en texto plano."},
+    {role: "user", content: $p}]}' \
+| curl -fsSN -m 300 "$url/api/chat" -d @- \
+| jq --unbuffered -j '.message.content // empty'
+echo

@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Service
-MimeType=application/octet-stream;text/plain;application/pdf;image/*;
-Actions=preguntarClaude;renombrarClaude;resumirClaude
+MimeType=application/octet-stream;text/plain;application/pdf;image/*;audio/*;
+Actions=preguntarClaude;renombrarClaude;resumirClaude;transcribirAudio
 X-KDE-Priority=TopLevel
 
 [Desktop Action preguntarClaude]
@@ -18,3 +18,8 @@ Exec=sh -c 'exec "$HOME/.claude/gadgets/bin/claude-renombrar" "$@"' claude-renom
 Name=Resumir con Claude
 Icon=view-list-text
 Exec=sh -c 'exec "$HOME/.claude/gadgets/bin/claude-resumir" --ventana "$1"' claude-resumir %f
+
+[Desktop Action transcribirAudio]
+Name=Transcribir audio
+Icon=audio-input-microphone
+Exec=sh -c 'exec "$HOME/.claude/gadgets/bin/claude-dictar" "$1" | kdialog --textbox - 700 400' claude-dictar %f

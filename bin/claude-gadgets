@@ -18,6 +18,9 @@ portapapeles|Hacer algo con el texto seleccionado
 resumir|Resumir el link o archivo copiado
 descargas|Ordenar la carpeta Descargas
 preguntar|Pregunta rápida…
+dictar|Dictar (queda copiado)
+voz|Preguntarle a Claude por voz
+local|Pregunta al modelo local (sin cupo)…
 recordar|Recordarme algo…
 anotar|Anotar un pendiente…
 salud|Salud de la máquina
@@ -45,6 +48,9 @@ correr() {
     recordar)      t=$(pedir "Recordatorio" "¿Cuándo y qué? (en 20 minutos sacar la pizza · mañana a las 9 llamar al contador)") && [ -n "$t" ] \
                      && notificar "Recordatorio" "$("$B/claude-recordar" $t 2>&1 | tail -1)" ok ;;
     anotar)        t=$(pedir "Anotar" "¿Qué anoto?") && [ -n "$t" ] && notificar "Anotado" "$("$B/claude-anotar" "$t" 2>&1 | tail -1)" ok ;;
+    dictar)        exec "$B/claude-dictar" ;;
+    voz)           exec "$B/claude-dictar" --preguntar ;;
+    local)         t=$(pedir "Modelo local" "¿Qué querés saber? (lo contesta Ollama, sin gastar cupo)") && [ -n "$t" ] && en_ventana "Local · $t" "$B/claude-local" "$t" ;;
     salud)         en_ventana "Salud de la máquina" "$B/claude-salud" ;;
     red)           en_ventana "Internet" "$B/claude-red" ;;
     descargas)     exec "$B/claude-descargas" ;;
@@ -91,6 +97,8 @@ f captura      "recortar la pantalla y preguntar · $(atajo captura)"
 f "captura --texto" "recortar y copiar el texto · $(atajo captura-texto)"
 f portapapeles "explicar, traducir o corregir lo seleccionado · $(atajo portapapeles)"
 f "gadgets --menu" "este menú, en pantalla · $(atajo gadgets)"
+f dictar       "dictado por voz, local · $(atajo dictar)"
+f "dictar --preguntar" "preguntarle a Claude por voz · $(atajo dictar-preguntar)"
 printf '\n\033[1mCorren solos\033[0m  (--instalar / --desinstalar)\n'
 f limite   "aviso cuando se acaba el cupo semanal · $(timer limite)"
 f medico   "diagnóstico cuando falla un servicio · $(timer medico)"
@@ -120,6 +128,8 @@ f estado     "servicios, repos y cupo en una pantalla"
 f "horas / panel / buscar" "tus números y tus sesiones"
 f descargas  "Claude ordena tu carpeta Descargas (con deshacer)"
 f "resumir …" "resume un link, PDF o documento"
+f "local …"   "pregunta al modelo local (Ollama): gratis y sin cupo"
+f "dictar audio.ogg" "transcribe un audio (también clic derecho)"
 f alterminar "avisar, suspender o apagar cuando Claude termine"
 f renombrar  "nombres descriptivos para archivos (también clic derecho)"
 f archivo    "preguntar sobre un archivo (también clic derecho)"

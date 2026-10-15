@@ -15,6 +15,8 @@ terminal, sobre archivos o a pedido.
 | `Súper+Mayús+G` | **Go Go Gadget** (`claude-gadgets --menu`) | Menú en pantalla con todos los gadgets. El mismo menú está en el ícono de la bandeja, en *Gadgets*. |
 | `Súper+Mayús+X` | **Lo seleccionado → Claude** (`claude-portapapeles`) | Marcás un texto en cualquier programa y elegís: explicar, resumir, traducir al castellano o al inglés, corregir, escribir una respuesta, leerlo en voz alta u otra cosa. Si el resultado es para pegar, ya queda copiado. |
 | `Súper+Mayús+C` | **Captura → Claude** (`claude-captura`) | Recortás un pedazo de pantalla (un error, un gráfico, un mail), preguntás y la respuesta aparece en una ventanita con botón *Copiar*. |
+| `Súper+Mayús+D` | **Dictado** (`claude-dictar`) | Apretás, hablás, apretás de nuevo: lo que dijiste queda copiado para pegar con `Ctrl+V`. Transcribe **en la compu** (faster-whisper): el audio no sale a internet. |
+| `Súper+Mayús+A` | **Preguntar por voz** (`claude-dictar --preguntar`) | Igual que el dictado, pero lo que dijiste se lo pregunta a Claude y la respuesta aparece en una ventana. |
 | `Súper+Mayús+T` | **Captura → texto** (`claude-captura --texto`) | Recortás la pantalla y el texto que se ve queda en el portapapeles. Sirve para copiar de imágenes, PDFs escaneados o videos. |
 
 Los atajos se prenden con `--instalar` en cada gadget (`claude-captura --instalar '<Control><Alt>c'` para usar otro).
@@ -76,6 +78,7 @@ Hace falta abrir una terminal nueva después de instalar.
 | `avisame comando…` | Corre un comando largo y te avisa cuando termina (al teléfono si no estás). Si falla, te dice por qué en una frase. |
 | `claude-commit` | Escribe el mensaje de commit con el estilo del repo a partir de lo que está en stage, y pregunta antes de commitear. |
 | `claude-como "…"` | «¿Cómo hago…?» → el comando suelto. |
+| `claude-local "…"` | Le pregunta al **modelo local** (Ollama) en vez de a Claude: gratis, sin internet y sin gastar cupo. Más limitado, pero para traducir o una duda rápida alcanza. `cat texto \| claude-local "resumilo"`. |
 | `claude-alterminar [suspender\|apagar]` | Espera a que ninguna sesión de Claude esté trabajando y avisa, suspende o apaga. |
 
 ---
@@ -87,6 +90,7 @@ Hace falta abrir una terminal nueva después de instalar.
 | **Preguntarle a Claude** | Clic derecho → *Scripts* | Le preguntás algo sobre un archivo; la respuesta se abre en tu editor. |
 | **Renombrar con Claude** | Clic derecho → *Scripts*, o `claude-renombrar archivos…` | Mira `IMG_4821.jpg` o `descarga (2).pdf` y propone nombres que dicen qué son. Tildás cuáles aceptar; `--deshacer` vuelve atrás. |
 | **Resumir con Claude** | Clic derecho → *Scripts*, o `claude-resumir link\|archivo` | Resume una página web, PDF, documento de Word o texto en 3 a 6 puntos. `-p "¿qué plazos hay?"` le pregunta algo puntual. Desde el menú, resume el link que tengas copiado. |
+| **Transcribir audio** | Clic derecho → *Scripts*, o `claude-dictar audio.ogg` | Pasa a texto una nota de voz de WhatsApp, una grabación o una reunión, local. El texto queda copiado. |
 | **Ordenar Descargas** | `claude-descargas` o el menú | Propone en qué subcarpeta va cada cosa suelta (Facturas, Fotos, Instaladores…). Sólo mira nombres y tipos, no el contenido. Tildás qué mover; `--deshacer` vuelve todo atrás. |
 | **Buzón** | Carpeta «Para Claude» | Ver *Corren solos*. |
 

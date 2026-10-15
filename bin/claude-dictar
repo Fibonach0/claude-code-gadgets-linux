@@ -1,0 +1,74 @@
+#!/bin/bash
+# Dictado por voz, local y gratis: apretás el atajo, hablás, apretás de nuevo y el
+# texto queda copiado para pegar. El audio no sale de la compu (faster-whisper).
+#   claude-dictar                 empieza a escuchar / termina y transcribe
+#   claude-dictar --preguntar     igual, pero lo dictado se lo pregunta a Claude
+#   claude-dictar audio.ogg       transcribe un archivo (audios de WhatsApp, reuniones…)
+#   claude-dictar --instalar      atajos: Súper+Mayús+D (dictar) y Súper+Mayús+A (preguntar)
+#   claude-dictar --desinstalar
+# Requisitos: pip install faster-whisper (en un venv: DICTAR_PY=/ruta/venv/bin/python).
+# Config: DICTAR_MODELO=base (tiny, small, medium: más lento y más fino) · DICTAR_IDIOMA=es (auto)
+#         DICTAR_MAX=180 (segundos máximos de grabación)
+export PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"
+[ -f $HOME/.config/claude-gadgets/config ] && . $HOME/.config/claude-gadgets/config
+[ -f $HOME/.claude/gadgets/bin/comun.sh ] && . $HOME/.claude/gadgets/bin/comun.sh
+B="$HOME/.claude/gadgets/bin"
+cache="${XDG_CACHE_HOME:-$HOME/.cache}/claude-gadgets"; mkdir -p "$cache"
+wav="$cache/dictado.wav"; pid="$cache/dictado.pid"; modo="$cache/dictado.modo"
+
+py() {  # el python que tiene faster-whisper
+  local p
+  for p in "${DICTAR_PY:-}" python3; do
+    [ -n "$p" ] && "$p" -c 'import faster_whisper' 2>/dev/null && { echo "$p"; return 0; }
+  done; return 1
+}
+transcribir() {
+  local p; p=$(py) || { echo "Falta faster-whisper: pip install faster-whisper (o DICTAR_PY en la config)" >&2; return 1; }
+  "$p" "$B/transcribir.py" "${DICTAR_MODELO:-base}" "${DICTAR_IDIOMA:-es}" "$1" 2>/dev/null
+}
+grabando() { [ -f "$pid" ] && kill -0 "$(cat "$pid")" 2>/dev/null; }
+
+case "${1:-}" in
+  --instalar)
+    py >/dev/null || { echo "Primero: pip install faster-whisper (o DICTAR_PY=/ruta/al/venv/bin/python en la config)"; exit 1; }
+    atajo_instalar dictar "Dictar (Claude)" "$B/claude-dictar" "${2:-<Shift><Super>d}" \
+      && atajo_instalar dictar-preguntar "Preguntar por voz (Claude)" "$B/claude-dictar --preguntar" "${3:-<Shift><Super>a}" \
+      && echo "✓ Súper+Mayús+D dicta (lo deja copiado) · Súper+Mayús+A le pregunta a Claude por voz"; exit 0 ;;
+  --desinstalar) atajo_desinstalar dictar; atajo_desinstalar dictar-preguntar; echo "✓ Atajos de dictado quitados"; exit 0 ;;
+  -h|--help) sed -n 2,12p "$0"; exit 0 ;;
+  --preguntar|"") ;;
+  *)  # un archivo de audio
+    [ -f "$1" ] || { echo "No encuentro «$1»."; exit 1; }
+    t=$(transcribir "$1") || exit 1
+    [ -n "$t" ] || { echo "No entendí nada en ese audio."; exit 1; }
+    printf '%s\n' "$t"; exit 0 ;;
+esac
+
+if ! grabando; then                              # ── empezar
+  rm -f "$wav"; echo "${1:-dictar}" > "$modo"
+  if command -v pw-record >/dev/null; then
+    timeout "${DICTAR_MAX:-180}" pw-record --rate 16000 --channels 1 "$wav" & 
+  else
+    timeout "${DICTAR_MAX:-180}" arecord -q -f S16_LE -r 16000 -c 1 "$wav" &
+  fi
+  echo $! > "$pid"; disown
+  sonar aviso
+  notificar "🎙️ Escuchando…" "Hablá. Apretá el atajo de nuevo para terminar." 
+  exit 0
+fi
+
+kill -INT "$(cat "$pid")" 2>/dev/null; sleep 0.4; rm -f "$pid"   # ── terminar
+m=$(cat "$modo" 2>/dev/null); rm -f "$modo"
+[ -s "$wav" ] || { notificar "Dictado" "No grabé nada (¿micrófono?)" error; exit 1; }
+notificar "Dictado" "Transcribiendo…"
+t=$(transcribir "$wav")
+[ -n "$t" ] || { notificar "Dictado" "No entendí nada. Probá de nuevo, más cerca del micrófono." error; exit 1; }
+if [ "$m" = --preguntar ]; then
+  notificar "Claude" "«$t» · pensando…"
+  r=$(claude_texto "${DICTAR_CLAUDE_MODELO:-sonnet}" "Te preguntan por voz. Contestá en castellano rioplatense, claro y sin vueltas: $t")
+  printf 'Preguntaste: %s\n\n%s\n' "$t" "${r:-(Claude no contestó)}" > "$cache/dictado-respuesta.txt"
+  ventana "Claude" "$cache/dictado-respuesta.txt"
+else
+  printf '%s' "$t" | copiar
+  notificar "✓ Copiado (Ctrl+V)" "$t" ok
+fi

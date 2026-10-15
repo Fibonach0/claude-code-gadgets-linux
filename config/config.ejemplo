@@ -100,6 +100,10 @@
 # NTFY_SIEMPRE=1           # manda siempre, estés o no
 # CONTROL_TEMA=…           # lo escribe claude-control --instalar (órdenes desde el teléfono)
 # CONTROL_MODELO=sonnet
+# DICTAR_PY=~/venv/bin/python   # un python con faster-whisper (claude-dictar)
+# DICTAR_MODELO=base       # tiny · base · small · medium
+# LOCAL_MODELO=llama3.2:3b # claude-local (Ollama)
+# OLLAMA_URL=http://127.0.0.1:11434
 # AVISAME_MODELO=haiku     # el que explica por qué falló un `avisame`
 
 # ── Salud de la máquina (claude-salud) ───────────────────────────────────────

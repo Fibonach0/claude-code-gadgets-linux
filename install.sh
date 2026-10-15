@@ -77,7 +77,7 @@ mkdir -p "$HOME/.local/bin"
 for c in claude-siri claude-estado claude-guardia claude-buzon claude-anotar claude-permitir claude-jobs claude-prebuild \
          claude-horas claude-buscar claude-panel claude-limite claude-cola claude-diario claude-limpiar \
          claude-pr claude-ritmo claude-retomar claude-decisiones claude-vigia claude-brief claude-captura claude-medico claude-celular \
-         claude-portapapeles claude-explica claude-como claude-commit claude-salud claude-portero claude-recordar claude-renombrar claude-gadgets claude-alterminar claude-despierto claude-control claude-avisame claude-descargas claude-red claude-resumir; do
+         claude-portapapeles claude-explica claude-como claude-commit claude-salud claude-portero claude-recordar claude-renombrar claude-gadgets claude-alterminar claude-despierto claude-control claude-avisame claude-descargas claude-red claude-resumir claude-dictar claude-local; do
   ln -sf "$GADGETS/bin/$c" "$HOME/.local/bin/$c"
 done
 ln -sf "$GADGETS/bin/claude-gadgets" "$HOME/.local/bin/gadget"     # Go Go Gadget: `gadget salud`, `gadget --menu`
@@ -160,6 +160,7 @@ if [ $SIN_ARCHIVOS = 0 ]; then
     install -m 755 "$AQUI/archivos/Preguntarle a Claude" "${par#*|}/Preguntarle a Claude"
     install -m 755 "$AQUI/archivos/Renombrar con Claude" "${par#*|}/Renombrar con Claude"
     install -m 755 "$AQUI/archivos/Resumir con Claude" "${par#*|}/Resumir con Claude"
+    install -m 755 "$AQUI/archivos/Transcribir audio" "${par#*|}/Transcribir audio"
     puestos+=" ${par%%|*}"
   done
   if command -v dolphin >/dev/null; then
@@ -167,7 +168,7 @@ if [ $SIN_ARCHIVOS = 0 ]; then
     install -m 755 "$AQUI/archivos/claude-gadgets.desktop" "$HOME/.local/share/kio/servicemenus/claude-gadgets.desktop"
     puestos+=" dolphin"
   fi
-  if [ -n "$puestos" ]; then ok "Clic derecho sobre un archivo → Scripts → Preguntarle a Claude · Renombrar · Resumir (${puestos# })"
+  if [ -n "$puestos" ]; then ok "Clic derecho sobre un archivo → Scripts → Preguntarle a Claude · Renombrar · Resumir · Transcribir audio (${puestos# })"
   else ojo "No encontré Nautilus, Nemo, Caja ni Dolphin. Desde la terminal: ~/.claude/gadgets/bin/claude-archivo <archivo>"; fi
 fi
 
