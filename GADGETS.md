@@ -44,8 +44,8 @@ notificación; si no estás en la compu y tenés **avisos al celular**, el aviso
 | **Diario** (`claude-diario`) | Cada noche escribe qué hiciste ese día, por proyecto. | 20:00 |
 | **Parte de la mañana** (`claude-brief`) | Arma temprano un parte de 4 o 5 frases: cupo, qué se rompió, pendientes y agenda. `claude-brief --decir` lo lee en voz alta. | 7:30 |
 | **Recordatorios** (`claude-recordar`) | `claude-recordar en 20 minutos sacar la pizza` · `mañana a las 9 llamar al contador`. Sobreviven a un reinicio. | A la hora |
-| **Guardián de deploys** (`claude-guardia`) | Después de mergear, que el cambio llegue de verdad a producción. Necesita `GUARDIA=(…)` en la config. | 2 min |
-| **Guardián de jobs** (`claude-jobs`) | Que los trabajos programados de tu servidor hayan corrido. Necesita `JOBS=(…)` en la config. | 1 vez por día |
+| **Guardián de deploys** (`claude-guardia`) | Vigila **todos** tus repos de GitHub, incluidos los nuevos, sin configurar nada. Cuando entra un merge a la rama principal, espera lo que informan Railway, GitHub Pages o Actions. Si llegó a producción te avisa en la compu; si falló o se trabó, también en el celular. Con `GUARDIA=(…)` además mira sitios que no informan a GitHub (bundle o salud). | 2 min |
+| **Guardián de jobs** (`claude-jobs`) | Recorre **todos** los proyectos y servicios de Railway, también los nuevos. Busca jobs programados que fallaron, deploys caídos y errores repetidos de las últimas 24 h. Solo mira, no toca nada. Con `JOBS=(…)` revisa una lista fija. | 1 vez por día (10:00) |
 | **Freno de mano** (hook) | Frena lo irreversible antes de que pase: push forzado, `rm -rf` con comodín, DROP/TRUNCATE, variables de producción, `dd`/`mkfs`. | Cada comando de Claude |
 | **Credenciales** (hook) | Frena que una clave entre a un repo, al escribir un archivo y al commitear. | Cada archivo y commit |
 | **Build de prueba** (hook + `claude-prebuild`) | Exige un build verde del front antes de mergear un PR que lo toca. | Al mergear |

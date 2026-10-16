@@ -34,11 +34,11 @@ Se instalan con un comando y se desinstalan con otro. **El catálogo completo, p
 | **Captura → Claude** | `claude-captura`: recortás un pedazo de pantalla (un error, un gráfico, un mail), preguntás y la respuesta aparece en una ventanita, con botón para copiarla. `claude-captura --instalar` le pone un atajo en GNOME (`Súper+Mayús+C`; otro: `--instalar '<Control><Alt>c'`). Recorta con lo que tengas: flameshot, gnome-screenshot, spectacle, el portal de escritorio… Claude sólo lee esa imagen. |
 | **Ulauncher** | Si usás [Ulauncher](https://ulauncher.io): `c ¿cuánto es 30 dólares en pesos?` + Enter y la respuesta aparece en el lanzador (y como notificación, por si lo cerraste). Enter sobre la respuesta la copia; `c ` a secas muestra la última. La palabra clave se cambia en las preferencias de Ulauncher. Usa `claude-siri`: respuestas cortas, sólo lectura y web. |
 | **Desde el celular** | `claude-siri "pregunta"`: una respuesta corta para leer en voz alta. Por SSH desde un Atajo del iPhone ("Oye Siri, consulta Claude") o desde Android (Termux, Tasker). Ver [docs/CELULAR.md](docs/CELULAR.md). |
-| **Guardián de deploys** | `claude-guardia`: cuando mergeás a main, espera a que el cambio llegue de verdad a producción. Si el sitio sigue sirviendo el bundle viejo (build roto que no bloquea el merge) o el servicio no vuelve, te avisa. |
+| **Guardián de deploys** | `claude-guardia`: vigila solo todos tus repos de GitHub (también los que crees después) con lo que Railway, Pages y Actions informan en cada commit. Además, para los que declares, cuando mergeás a main espera a que el cambio llegue de verdad a producción. Si el sitio sigue sirviendo el bundle viejo (build roto que no bloquea el merge) o el servicio no vuelve, te avisa. |
 | **Buzón** | `claude-buzon`: dejás una foto, PDF o Excel en una carpeta (si la sincronizás, también desde el celular) y aparece al lado una ficha en `.md` con los datos. |
 | **Estado** | `claude-estado`: en una pantalla, servicios arriba o abajo, qué se mergeó hoy, PRs abiertos, deploys en curso y tu cupo de Claude. Va bien para pedirlo desde el celular. |
 | **Freno de mano** | Hook `PreToolUse` que frena lo irreversible antes de que pase: push forzado, `rm -rf` con comodín, DROP/TRUNCATE, variables de producción, borrar repos o credenciales, `dd`/`mkfs` sobre un disco. |
-| **Guardián de jobs** | `claude-jobs`: revisa en los logs si los trabajos programados de tu servidor corrieron a la hora que tenían, y avisa sólo si falta alguno. |
+| **Guardián de jobs** | `claude-jobs`: una vez por día recorre todos tus servicios de Railway (o la lista `JOBS` que le des) y avisa sólo si un job falló, no corrió o un servicio está caído. |
 | **Build de prueba** | `claude-prebuild`: compila el front en una copia aparte, sin pisar tu `build/`. Un hook exige ese build verde antes de mergear un PR que toca el front. |
 | **Anotar por voz** | `claude-anotar "…"`: guarda un pendiente con fecha y proyecto (lo clasifica solo). Va bien para dictarlo desde el celular. |
 | **Autorizar desde el celular** | `claude-permitir`: deja pasar, una vez y por 10 minutos, el último comando que frenó el freno de mano. Y **aprende**: a la tercera vez te ofrece dejarlo fijo (`--siempre`), así el freno queda para lo raro. |
@@ -143,7 +143,10 @@ CLAUDE_SIRI_DIR="$HOME/proyectos"            # dónde trabaja claude-siri
 CLAUDE_SIRI_MODELO="sonnet"
 CLAUDE_SIRI_EXTRA=("$HOME/otra-carpeta")     # carpetas extra que puede leer
 
-# Guardián de deploys: nombre|repo|destino|modo   (modo: bundle | salud)
+# Guardián de deploys: sin nada, vigila todos tus repos de GitHub (GUARDIA_AUTO=0 lo apaga)
+GUARDIA_DUENOS="tu-usuario tu-org"             # opcional: de quién son los repos
+GUARDIA_IGNORAR="Supabase Preview"           # chequeos que no son de producción
+# Extra, para sitios que no le informan a GitHub: nombre|repo|destino|modo (bundle | salud)
 GUARDIA=("hub|$HOME/proyectos/hub|https://hub.ejemplo.com/|bundle"
          "bot|$HOME/proyectos/bot|https://bot.ejemplo.com/|salud")
 GUARDIA_ESPERA=15                            # minutos antes de dar el deploy por perdido
@@ -153,7 +156,8 @@ BUZON="$HOME/Para Claude"                    # cualquier carpeta; mejor si se si
 NTFY_TOPIC=""                                # opcional: avisos al celular por ntfy.sh
 FRENO=1                                      # 0 apaga el freno de mano
 
-# Guardián de trabajos programados (usa el conector de Railway vía Claude)
+# Guardián de trabajos programados (usa el conector de Railway vía Claude).
+# Sin JOBS revisa todos los servicios de Railway; con JOBS, sólo esa lista.
 JOBS_SERVICIO="el servicio web del proyecto tal"
 JOBS=("backup_diario|03:00|guarda el dump" "aviso_precios|08:15|")
 JOBS_HORA=10

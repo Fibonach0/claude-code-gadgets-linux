@@ -19,7 +19,15 @@
 #   GUARDIA=("hub|$HOME/proyectos/hub|https://hub.ejemplo.com/|bundle"
 #            "bot|$HOME/proyectos/bot|https://bot.ejemplo.com/|salud")
 #   GUARDIA_ESPERA=15     # minutos antes de dar el deploy por perdido
-export PATH="/usr/local/bin:/usr/bin:/bin"
+#
+# Modo automático (prendido por defecto si tenés `gh` logueado): vigila TODOS los
+# repos de tu cuenta de GitHub, también los que crees mañana, sin declarar nada.
+# Usa lo que Railway, GitHub Pages, Vercel, Actions… ya informan en cada commit
+# de la rama principal: avisa cuando queda en producción y, sobre todo, si falla.
+#   GUARDIA_AUTO=0                     lo apaga
+#   GUARDIA_DUENOS="mi-usuario mi-org" de quién son los repos (por defecto: vos)
+#   GUARDIA_IGNORAR='Supabase Preview' chequeos que no son de producción (regex)
+export PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"
 export LANG=${LANG:-es_AR.UTF-8}
 # Las dos rutas son configurables por entorno para poder probar el guardián
 # sin tocar tu configuración ni tu estado reales (ver pruebas/).
@@ -31,7 +39,7 @@ estado="$est/guardia.json"; log="$est/guardia.log"
 espera=$((${GUARDIA_ESPERA:-15} * 60))
 [ -f "$estado" ] || echo '{}' > "$estado"
 
-avisar() {  # titulo, texto, sonido[, "urgente"]
+avisar() {  # titulo, texto, sonido[, "urgente"[, "local" = no al celular]]
   # En horario de silencio queda sólo en el log, salvo lo urgente.
   if declare -f en_silencio >/dev/null && en_silencio "${4:-}"; then
     printf '%s | (en silencio) %s: %s\n' "$(date '+%d/%m %H:%M')" "$1" "$2" >> "$log"
@@ -40,7 +48,7 @@ avisar() {  # titulo, texto, sonido[, "urgente"]
   local t=${1//\"/\'} m=${2//\"/\'}
   notificar "$t" "$m" "${3:-aviso}"
   # Aviso al celular, sólo si configuraste un tema de ntfy.sh (ver README).
-  [ -n "$NTFY_TOPIC" ] && curl -s -m 5 -H "Title: $1" -d "$2" "https://ntfy.sh/$NTFY_TOPIC" >/dev/null &
+  [ -n "$NTFY_TOPIC" ] && [ "${5:-}" != local ] && curl -s -m 5 -H "Title: $1" -d "$2" "https://ntfy.sh/$NTFY_TOPIC" >/dev/null &
   printf '%s | %s: %s\n' "$(date '+%d/%m %H:%M')" "$1" "$2" >> "$log"
 }
 
@@ -61,7 +69,7 @@ huella() {  # qué está sirviendo el destino ahora
 
 case "${1:-}" in
   --estado)
-    jq -r 'to_entries[] | "\(.key): sha \(.value.sha[0:7] // "?") · \(if .value.desde then "esperando desde " + (.value.desde|tonumber|strflocaltime("%H:%M")) else "al día" end)"' "$estado"
+    jq -r 'to_entries[] | select(.key != "_auto") | select((.key | startswith("auto:") | not) or (.value.desde // "") != "") | "\(.key): sha \(.value.sha[0:7] // "?") · \(if .value.desde then "esperando desde " + (.value.desde|tonumber|strflocaltime("%H:%M")) else "al día" end)"' "$estado"
     [ -f "$log" ] && { echo "--- últimos avisos:"; tail -5 "$log"; }; exit 0 ;;
   --instalar)
     timer_instalar guardia cada:120 && echo "✓ Guardián activo: revisa cada 2 minutos. Ver: claude-guardia --estado"; exit 0 ;;
@@ -69,7 +77,55 @@ case "${1:-}" in
     timer_desinstalar guardia; echo "✓ Guardián apagado"; exit 0 ;;
 esac
 
-[ ${#GUARDIA[@]} -eq 0 ] && { echo "Nada que vigilar: definí GUARDIA en $conf"; exit 0; }
+# --- Modo automático: todos los repos, con lo que GitHub ya sabe del deploy ---
+consulta='query($owner:String!){ repositoryOwner(login:$owner){ repositories(first:100, orderBy:{field:PUSHED_AT,direction:DESC}){ nodes{
+  name isArchived isFork defaultBranchRef{ target{ ... on Commit{ oid messageHeadline
+  statusCheckRollup{ contexts(first:30){ nodes{ __typename
+    ... on StatusContext{ context state } ... on CheckRun{ name status conclusion } } } } } } } } } } }'
+vigilar_auto() {
+  local duenos=${GUARDIA_DUENOS:-$(gh api user --jq .login 2>/dev/null)} d ignorar=${GUARDIA_IGNORAR:-Supabase Preview}
+  [ -n "$duenos" ] || return
+  for d in $duenos; do
+    # Un renglón por repo: nombre, sha, título y el estado de sus chequeos de
+    # producción (los de GUARDIA_IGNORAR no cuentan: Supabase Preview falla solo).
+    gh api graphql -F owner="$d" -f query="$consulta" 2>/dev/null | jq -r --arg ign "$ignorar" '
+      .data.repositoryOwner.repositories.nodes[] | select((.isArchived or .isFork) | not)
+      | select(.defaultBranchRef.target.oid) | .defaultBranchRef.target as $c
+      | [($c.statusCheckRollup.contexts.nodes // [])[]
+         | {n: (.context // .name), e: (.state // (if .status != "COMPLETED" then "PENDING" else .conclusion end))}
+         | select($ign == "" or (.n | test($ign) | not))] as $ch
+      | ([$ch[] | select(.e == "FAILURE" or .e == "ERROR" or .e == "TIMED_OUT" or .e == "STARTUP_FAILURE") | .n]) as $mal
+      | [.name, $c.oid, ($c.messageHeadline | gsub("\t"; " ") | .[0:70]),
+         (if ($ch | length) == 0 then "NADA" elif ($mal | length) > 0 then "MAL"
+          elif any($ch[]; .e == "PENDING" or .e == "EXPECTED" or .e == "QUEUED" or .e == "IN_PROGRESS") then "ESPERA" else "OK" end),
+         ($mal | join(", "))] | @tsv' | sed "s|^|$d/|"
+  done | while IFS=$'\t' read -r repo sha titulo st mal; do
+    local n="auto:$repo" visto desde ahora; visto=$(leer "$n" sha); ahora=$(date +%s)
+    if [ -z "$visto" ]; then            # repo nuevo (o primera pasada): sólo la foto
+      guardar "$n" sha "$sha"; guardar "$n" desde ""
+      [ -n "$(leer _auto ya)" ] && avisar "👀 Repo nuevo: ${repo#*/}" "Lo sumo al guardián" aviso
+      continue
+    fi
+    if [ "$sha" != "$visto" ]; then     # merge nuevo en la rama principal
+      guardar "$n" sha "$sha"; guardar "$n" titulo "$titulo"
+      guardar "$n" desde "$ahora"
+    fi
+    desde=$(leer "$n" desde); [ -z "$desde" ] && continue
+    titulo=$(leer "$n" titulo)
+    case "$st" in
+      OK)  avisar "✅ ${repo#*/}: en producción" "$titulo ($(( (ahora - desde) / 60 ))m)" listo "" local; guardar "$n" desde "" ;;
+      MAL) avisar "❌ ${repo#*/}: falló el deploy" "$mal · $titulo" error urgente; guardar "$n" desde "" ;;
+      NADA) [ $((ahora - desde)) -ge 300 ] && guardar "$n" desde "" ;;   # Railway tarda en anotarse; a los 5m sin nada, no tiene deploy
+      *)   [ $((ahora - desde)) -ge $espera ] && { avisar "⚠️ ${repo#*/}: deploy trabado" "Hace $(( (ahora - desde) / 60 ))m que espera: $titulo" error; guardar "$n" desde ""; } ;;
+    esac
+  done
+  guardar _auto ya 1
+}
+if [ "${GUARDIA_AUTO:-1}" != 0 ] && command -v gh >/dev/null && gh auth status >/dev/null 2>&1; then
+  vigilar_auto
+elif [ ${#GUARDIA[@]} -eq 0 ]; then
+  echo "Nada que vigilar: logueá gh (gh auth login) o definí GUARDIA en $conf"; exit 0
+fi
 
 for fila in "${GUARDIA[@]}"; do
   IFS='|' read -r nombre repo url modo <<<"$fila"

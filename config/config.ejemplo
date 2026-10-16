@@ -15,6 +15,11 @@
 # CLAUDE_SIRI_EXTRA=("$HOME/otro-proyecto")
 
 # ── Guardián de deploys ──────────────────────────────────────────────────────
+# Sin configurar nada vigila todos tus repos de GitHub (necesita `gh` logueado).
+# GUARDIA_AUTO=0                       # lo apaga
+# GUARDIA_DUENOS="tu-usuario tu-org"   # de quién son los repos (por defecto, vos)
+# GUARDIA_IGNORAR='Supabase Preview'   # chequeos que no son de producción
+# Además, para sitios que no le informan a GitHub:
 # nombre|repo|destino|modo   (modo: bundle = mira /static/main.<hash>.js
 #                                    salud  = espera un 200)
 # GUARDIA=("hub|$HOME/proyectos/hub|https://hub.ejemplo.com/|bundle"
@@ -36,6 +41,7 @@
 
 # ── Guardián de trabajos programados ─────────────────────────────────────────
 # Revisa los logs con Claude + el conector de Railway (corre local, no por SSH).
+# Sin JOBS revisa TODOS los servicios de Railway; con JOBS, sólo esa lista.
 # JOBS_SERVICIO="el servicio web del proyecto tal"
 # JOBS=("backup_diario|03:00|guarda el dump"
 #       "aviso_precios|08:15|")

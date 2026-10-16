@@ -14,6 +14,9 @@
 #   JOBS=("ypf_diario|08:15|baja precios y avisa"
 #         "guardian_volcados|07:00|")
 #   JOBS_HORA=10      # a qué hora revisa (una vez por día)
+# Sin JOBS, revisa TODO Railway: cada proyecto y servicio (también los que
+# crees después), buscando jobs programados que fallaron, deploys caídos y
+# errores que se repiten en las últimas 24 horas.
 export PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"
 export LANG=${LANG:-es_AR.UTF-8}
 conf=~/.config/claude-gadgets/config
@@ -40,24 +43,35 @@ case "${1:-}" in
   --ultimo) [ -f "$salida" ] && jq -r '.[] | "\(if .ok then "OK " else "FALTA" end) \(.id): \(.detalle)"' "$salida"; exit 0 ;;
 esac
 
-[ ${#JOBS[@]} -eq 0 ] && { echo "Nada que revisar: definí JOBS en $conf"; exit 0; }
-
 lista=""
 for fila in "${JOBS[@]}"; do
   IFS='|' read -r id hora que <<<"$fila"
   lista+="- $id: tenía que correr hoy a las $hora${que:+ ($que)}"$'\n'
 done
 
+if [ ${#JOBS[@]} -eq 0 ]; then
+pedido="Revisá TODOS los proyectos y servicios de Railway de mi cuenta (listalos, no te saltees ninguno).
+Para cada servicio mirá el estado del último deploy y los logs de las últimas 24 horas:
+- trabajos programados (jobs, cron, scheduler, tareas diarias) que fallaron, tiraron excepción o no corrieron;
+- deploy caído, crasheado o reiniciándose;
+- errores que se repiten mucho.
+Sólo mirá: no cambies, reinicies ni redeployes nada.
+Respondé SÓLO un JSON, sin texto alrededor, un elemento por servicio:
+[{\"id\":\"proyecto/servicio\",\"ok\":true,\"detalle\":\"3 jobs corrieron bien\"}]
+ok=false sólo si hay algo para arreglar. En detalle, una frase corta en castellano."
+else
 pedido="Revisá en los logs de Railway de ${JOBS_SERVICIO:-el servicio principal} si estos trabajos programados corrieron HOY:
 $lista
 Para cada uno buscá su rastro en los logs de hoy (nombre del job, errores, excepciones).
 Respondé SÓLO un JSON, sin texto alrededor, con esta forma:
 [{\"id\":\"...\",\"ok\":true,\"detalle\":\"corrió 08:15, 1703 filas\"}]
 ok=false si no corrió, si falló, o si no encontrás rastro. En detalle, una frase corta en castellano."
+fi
 
 respuesta=$(claude -p "$pedido" --no-session-persistence --model sonnet --permission-mode dontAsk \
   --allowedTools "mcp__claude_ai_Railway__get-logs" "mcp__claude_ai_Railway__list-projects" \
                  "mcp__claude_ai_Railway__list-services" "mcp__claude_ai_Railway__list-deployments" \
+                 "mcp__claude_ai_Railway__get-status" "mcp__claude_ai_Railway__list-workspaces" \
   </dev/null 2>&1)
 
 # El modelo a veces lo envuelve en ```json: me quedo con el array más grande.

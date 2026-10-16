@@ -20,6 +20,7 @@ git init -q "$repo"
   && git remote add origin "$repo" && git update-ref refs/remotes/origin/main HEAD)
 
 cat > "$CLAUDE_GADGETS_CONF" <<CONF
+GUARDIA_AUTO=0
 GUARDIA=("prueba|$repo|http://127.0.0.1:9/|bundle")
 GUARDIA_PATRON='^front/'
 GUARDIA_ESPERA=15
