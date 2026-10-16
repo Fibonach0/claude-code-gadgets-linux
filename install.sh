@@ -77,7 +77,7 @@ mkdir -p "$HOME/.local/bin"
 for c in claude-siri claude-estado claude-guardia claude-buzon claude-anotar claude-permitir claude-jobs claude-prebuild \
          claude-horas claude-buscar claude-panel claude-limite claude-cola claude-diario claude-limpiar \
          claude-pr claude-ritmo claude-retomar claude-decisiones claude-vigia claude-brief claude-captura claude-medico claude-celular \
-         claude-portapapeles claude-explica claude-como claude-commit claude-salud claude-portero claude-recordar claude-renombrar claude-gadgets claude-alterminar claude-despierto claude-control claude-avisame claude-descargas claude-red claude-resumir claude-dictar claude-local; do
+         claude-portapapeles claude-explica claude-como claude-commit claude-salud claude-portero claude-recordar claude-renombrar claude-gadgets claude-alterminar claude-despierto claude-control claude-avisame claude-descargas claude-red claude-resumir claude-dictar claude-local claude-casa; do
   ln -sf "$GADGETS/bin/$c" "$HOME/.local/bin/$c"
 done
 ln -sf "$GADGETS/bin/claude-gadgets" "$HOME/.local/bin/gadget"     # Go Go Gadget: `gadget salud`, `gadget --menu`

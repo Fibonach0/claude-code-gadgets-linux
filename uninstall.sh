@@ -33,7 +33,7 @@ rm -f "$CLAUDE_DIR/statusline.sh" "$CLAUDE_DIR/hooks/avisar.sh" "$CLAUDE_DIR/hoo
 for c in claude-siri claude-estado claude-guardia claude-buzon claude-anotar claude-permitir claude-jobs claude-prebuild \
          claude-horas claude-buscar claude-panel claude-limite claude-cola claude-diario claude-limpiar claude-brief \
          claude-pr claude-ritmo claude-retomar claude-decisiones claude-vigia claude-captura claude-medico claude-celular \
-         claude-portapapeles claude-explica claude-como claude-commit claude-salud claude-portero claude-recordar claude-renombrar claude-gadgets claude-alterminar claude-despierto claude-control claude-avisame claude-descargas claude-red claude-resumir claude-dictar claude-local gadget avisame; do rm -f "$HOME/.local/bin/$c"; done
+         claude-portapapeles claude-explica claude-como claude-commit claude-salud claude-portero claude-recordar claude-renombrar claude-gadgets claude-alterminar claude-despierto claude-control claude-avisame claude-descargas claude-red claude-resumir claude-dictar claude-local claude-casa gadget avisame; do rm -f "$HOME/.local/bin/$c"; done
 pkill -f "$CLAUDE_DIR/gadgets/indicador/claude-indicador.py" 2>/dev/null || true
 rm -f "$HOME/.config/autostart/claude-gadgets-indicador.desktop" \
       "$HOME/.local/share/nautilus/scripts/Preguntarle a Claude" \

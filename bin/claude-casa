@@ -1,0 +1,60 @@
+#!/bin/bash
+# Casa: luces y enchufes Tuya / Smart Life, por la red de tu casa (sin la nube).
+#   claude-casa                              cómo está todo
+#   claude-casa prender adelante             prende las teclas de esa llave
+#   claude-casa apagar atrás 2               sólo la tecla 2
+#   claude-casa cambiar dormitorio           si estaba prendida la apaga y al revés
+#   claude-casa "apagá todo menos atrás"     en castellano: Claude lo traduce a órdenes
+# También desde el teléfono (claude-control: «prendé la luz de adelante») y por voz.
+#
+# Requisitos: un python con tinytuya (CASA_PY) y el devices.json con las llaves
+# locales (`python -m tinytuya wizard`, una sola vez, con tu cuenta de iot.tuya.com).
+# Config: CASA_PY=/ruta/venv/bin/python · CASA_DISPOSITIVOS=/ruta/devices.json
+#         CASA_SNAPSHOT=/ruta/snapshot.json (opcional: IPs del `tinytuya scan`)
+#         CASA_SECO=1 muestra las órdenes sin ejecutarlas (para probar)
+export PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"
+export LANG=${LANG:-es_AR.UTF-8}
+[ -f $HOME/.config/claude-gadgets/config ] && . $HOME/.config/claude-gadgets/config
+[ -f $HOME/.claude/gadgets/bin/comun.sh ] && . $HOME/.claude/gadgets/bin/comun.sh
+B="$HOME/.claude/gadgets/bin"
+py=${CASA_PY:-python3}; devs=${CASA_DISPOSITIVOS:-$HOME/.config/claude-gadgets/tuya-devices.json}
+"$py" -c 'import tinytuya' 2>/dev/null || { echo "Falta tinytuya: pip install tinytuya (o CASA_PY en la config)"; exit 1; }
+[ -f "$devs" ] || { echo "No encuentro $devs: corré «python -m tinytuya wizard» y poné CASA_DISPOSITIVOS en la config."; exit 1; }
+casa() {
+  if [ -n "${CASA_SECO:-}" ] && [ "$1" != estado ] && [ "$1" != lista ]; then echo "(prueba) $*"; return 0; fi
+  "$py" "$B/casa.py" "$devs" ${CASA_SNAPSHOT:+"$CASA_SNAPSHOT"} "$@"
+}
+
+verbo() {  # prender/apagar/cambiar en castellano → on/off/cambiar
+  case "$(tr '[:upper:]' '[:lower:]' <<<"$1")" in
+    prender|prendé|prende|encender|encendé|on) echo on ;;
+    apagar|apagá|apaga|off) echo off ;;
+    cambiar|cambiá|alternar|toggle) echo cambiar ;;
+  esac
+}
+
+case "${1:-}" in
+  ""|estado|--estado) casa estado; exit ;;
+  -h|--help) sed -n 2,14p "$0"; exit 0 ;;
+esac
+
+if [ $# -ge 2 ] && v=$(verbo "$1") && [ -n "$v" ]; then shift; casa "$v" "$@"; exit; fi
+
+# En castellano libre: Claude sólo traduce a órdenes de la lista; las ejecuta este script.
+frase="$*"
+ordenes=$(claude_texto "${CASA_MODELO:-haiku}" "Traducí este pedido a órdenes para las luces y enchufes de una casa.
+Dispositivos (nombre<TAB>tipo):
+$(casa lista)
+
+Respondé SOLAMENTE renglones con este formato, uno por orden, sin nada más:
+on|off|cambiar<TAB>nombre exacto de la lista<TAB>número de tecla o vacío
+Si el pedido no es sobre estos dispositivos, respondé NADA.
+Pedido: $frase")
+[ -n "$ordenes" ] && [ "$ordenes" != NADA ] || { echo "No entendí qué prender o apagar."; exit 1; }
+ok=0
+while IFS=$'\t' read -r a n t; do
+  case "$a" in on|off|cambiar) ;; *) continue ;; esac
+  [ -n "$n" ] || continue
+  casa "$a" "$n" ${t:+"$t"} && ok=1
+done <<<"$ordenes"
+[ $ok = 1 ]

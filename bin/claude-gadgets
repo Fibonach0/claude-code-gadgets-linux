@@ -24,6 +24,7 @@ local|Pregunta al modelo local (sin cupo)…
 recordar|Recordarme algo…
 anotar|Anotar un pendiente…
 salud|Salud de la máquina
+casa|Luces y enchufes de casa
 medico|Servicios caídos, con diagnóstico
 red|Cómo anda internet
 portero|Quién entró por SSH
@@ -53,6 +54,11 @@ correr() {
     local)         t=$(pedir "Modelo local" "¿Qué querés saber? (lo contesta Ollama, sin gastar cupo)") && [ -n "$t" ] && en_ventana "Local · $t" "$B/claude-local" "$t" ;;
     salud)         en_ventana "Salud de la máquina" "$B/claude-salud" ;;
     red)           en_ventana "Internet" "$B/claude-red" ;;
+    casa)          t=$("$B/claude-casa" 2>&1 | sed 's/^  //')
+                   t=$(pedir "Casa" "$t
+
+¿Qué hago? (prendé adelante · apagá todo · cambiá dormitorio)") && [ -n "$t" ] \
+                     && notificar "Casa" "$("$B/claude-casa" "$t" 2>&1 | tail -3)" ok ;;
     descargas)     exec "$B/claude-descargas" ;;
     resumir)       t=$(pegar | head -1 | sed 's/^[[:space:]]*//; s/[[:space:]]*$//; s|^file://||')
                    if [[ "$t" =~ ^https?:// ]] || [ -f "$t" ]; then exec "$B/claude-resumir" --ventana "$t"
@@ -128,6 +134,7 @@ f estado     "servicios, repos y cupo en una pantalla"
 f "horas / panel / buscar" "tus números y tus sesiones"
 f descargas  "Claude ordena tu carpeta Descargas (con deshacer)"
 f "resumir …" "resume un link, PDF o documento"
+f "casa …"    "luces y enchufes Tuya: «prendé adelante», «apagá todo»"
 f "local …"   "pregunta al modelo local (Ollama): gratis y sin cupo"
 f "dictar audio.ogg" "transcribe un audio (también clic derecho)"
 f alterminar "avisar, suspender o apagar cuando Claude termine"

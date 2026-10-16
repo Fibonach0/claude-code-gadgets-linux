@@ -104,6 +104,9 @@
 # DICTAR_MODELO=base       # tiny · base · small · medium
 # LOCAL_MODELO=llama3.2:3b # claude-local (Ollama)
 # OLLAMA_URL=http://127.0.0.1:11434
+# CASA_PY=~/tuya/venv/bin/python        # claude-casa: un python con tinytuya
+# CASA_DISPOSITIVOS=~/tuya/devices.json  # el de `python -m tinytuya wizard` (¡tiene las llaves: chmod 600!)
+# CASA_SNAPSHOT=~/tuya/snapshot.json     # opcional, IPs del `tinytuya scan`
 # AVISAME_MODELO=haiku     # el que explica por qué falló un `avisame`
 
 # ── Salud de la máquina (claude-salud) ───────────────────────────────────────

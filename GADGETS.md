@@ -58,11 +58,19 @@ notificación; si no estás en la compu y tenés **avisos al celular**, el aviso
 | Gadget | Qué hace |
 |---|---|
 | **Avisos al celular** (`claude-celular --instalar`) | Si Claude te queda esperando, falla un servicio, se corta internet o se acaba el cupo **y no estás en la compu**, te llega al teléfono por la app [ntfy](https://ntfy.sh). |
-| **Control remoto** (`claude-control --instalar`) | Le escribís a la compu desde la app ntfy y te contesta. Entiende: `estado`, `red`, `recordame en 20 minutos …`, `anotá …`, `pendientes`, `decí …` (lo dice en voz alta en la compu), `bloquear`, `ayuda`. Cualquier otra cosa se la pregunta a Claude, que contesta **sin herramientas**: no lee tus archivos ni corre comandos. **También le podés mandar una nota de voz** (el clip de la app ntfy): la transcribe en la compu y hace lo que dijiste. |
+| **Control remoto** (`claude-control --instalar`) | Le escribís a la compu desde la app ntfy y te contesta. Entiende: `casa`, `prendé la luz de …`, `apagá todo`, `estado`, `red`, `recordame en 20 minutos …`, `anotá …`, `pendientes`, `decí …` (lo dice en voz alta en la compu), `bloquear`, `ayuda`. Cualquier otra cosa se la pregunta a Claude, que contesta **sin herramientas**: no lee tus archivos ni corre comandos. **También le podés mandar una nota de voz** (el clip de la app ntfy): la transcribe en la compu y hace lo que dijiste. |
 | **Pregunta rápida** (`claude-siri "…"`) | Respuesta corta para leer en voz alta, por SSH desde un Atajo del iPhone o desde Android (Termux, Tasker). Ver [docs/CELULAR.md](docs/CELULAR.md). |
 | **Estado** (`claude-estado`) | Servicios, qué se mergeó hoy, PRs abiertos y cupo, en una pantalla corta. |
 | **Anotar** (`claude-anotar "…"`) | Guarda un pendiente con fecha y proyecto; lo clasifica solo. Para dictar. |
 | **Autorizar** (`claude-permitir`) | Deja pasar una vez el último comando que frenó el freno de mano. A la tercera te ofrece dejarlo fijo. |
+
+---
+
+## 🏠 Casa
+
+| Gadget | Qué hace |
+|---|---|
+| **Luces y enchufes** (`claude-casa`) | Maneja las llaves de luz y enchufes Tuya / Smart Life **por la red de casa**, sin la nube. `claude-casa` muestra cómo está todo; `claude-casa prender adelante`, `apagar atrás 2` (sólo la tecla 2), `cambiar dormitorio`; o en castellano: `claude-casa "apagá todo menos atrás"`. Desde el teléfono: `casa`, `prendé la luz de adelante`, también con nota de voz. En el menú: *Luces y enchufes de casa*. Las llaves locales salen una sola vez de tu cuenta de iot.tuya.com. |
 
 ---
 
