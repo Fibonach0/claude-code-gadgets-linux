@@ -1,0 +1,239 @@
+#!/usr/bin/env python3
+"""Después de un reinicio, reabre las sesiones de Claude que tenías abiertas.
+
+    claude-reabrir --instalar      prende la foto periódica y el arranque solo
+    claude-reabrir --estado        qué sesiones reabriría
+    claude-reabrir --ensayo        muestra qué abriría, sin abrir nada
+    claude-reabrir --desinstalar
+
+Cada 2 minutos saca una foto de las sesiones interactivas abiertas. Al entrar
+al escritorio después de un reinicio abre cada una en una pestaña, con
+`claude --resume`, en su carpeta. Una suspensión no reinicia nada, así que
+ahí no hace falta ni pasa nada. Cada pestaña puede frenar en el aviso de
+confianza de Claude: ése lo contestás vos, no se saltea.
+
+La foto lleva el boot_id: la de un arranque anterior no se pisa hasta haberla
+reabierto, y tampoco se saca mientras la máquina se apaga, cuando las sesiones
+ya se están cerrando. Si cerrás una sesión a propósito, sale de la foto y no
+vuelve.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import pathlib
+import shlex
+import shutil
+import subprocess
+import sys
+import time
+
+CASA = pathlib.Path.home()
+CLAUDE = CASA / ".claude"
+FOTO = CLAUDE / "estado" / "sesiones-abiertas.json"
+UNIDADES = pathlib.Path(os.environ.get("XDG_CONFIG_HOME", CASA / ".config")) / "systemd" / "user"
+AUTOSTART = pathlib.Path(os.environ.get("XDG_CONFIG_HOME", CASA / ".config")) / "autostart"
+NOMBRE = "claude-gadgets-reabrir"
+ESTE = CLAUDE / "gadgets" / "bin" / "claude-reabrir"
+
+
+def arranque() -> str:
+    return pathlib.Path("/proc/sys/kernel/random/boot_id").read_text().strip()
+
+
+def apagandose() -> bool:
+    r = subprocess.run(["systemctl", "is-system-running"], capture_output=True, text=True)
+    return r.stdout.strip() == "stopping"
+
+
+def viva(s: dict) -> bool:
+    """El pid sólo vale si es el mismo proceso: tras reiniciar los pid se reciclan."""
+    try:
+        estado = pathlib.Path(f"/proc/{s['pid']}/stat").read_text()
+    except (OSError, KeyError):
+        return False
+    return estado.rsplit(")", 1)[1].split()[19] == str(s.get("procStart"))
+
+
+def abiertas() -> list[dict]:
+    sesiones = []
+    for f in (CLAUDE / "sessions").glob("*.json"):
+        try:
+            s = json.loads(f.read_text())
+        except (OSError, ValueError):
+            continue
+        if s.get("kind") == "interactive" and s.get("sessionId") and viva(s):
+            sesiones.append({"id": s["sessionId"], "cwd": s.get("cwd") or str(CASA),
+                             "nombre": s.get("name") or ""})
+    return sesiones
+
+
+def leer_foto() -> dict | None:
+    try:
+        return json.loads(FOTO.read_text())
+    except (OSError, ValueError):
+        return None
+
+
+def escribir_foto(sesiones: list[dict]) -> None:
+    FOTO.parent.mkdir(parents=True, exist_ok=True)
+    tmp = FOTO.with_suffix(".tmp")
+    tmp.write_text(json.dumps({"boot": arranque(), "sesiones": sesiones}, ensure_ascii=False, indent=1))
+    tmp.replace(FOTO)
+
+
+def guardar() -> None:
+    foto = leer_foto()
+    if foto and foto.get("boot") != arranque():
+        return  # todavía no se reabrió: es la única copia de lo que había
+    if apagandose():
+        return
+    sesiones = abiertas()
+    ids = {s["id"] for s in sesiones}
+    esperando = esperando_confirmacion()
+    sesiones += [s for s in (foto or {}).get("sesiones", []) if s["id"] not in ids and s["id"] in esperando]
+    escribir_foto(sesiones)
+
+
+def esperando_confirmacion() -> set[str]:
+    """Reabiertas que todavía no se registraron: Claude frena en «¿confiás en
+    esta carpeta?» y recién al contestar aparece en ~/.claude/sessions. Sin
+    esto, la foto siguiente las perdería."""
+    ids = set()
+    for f in pathlib.Path("/proc").glob("[0-9]*/cmdline"):
+        try:
+            args = f.read_bytes().split(b"\0")
+        except OSError:
+            continue
+        if b"--resume" in args[:-1]:
+            ids.add(args[args.index(b"--resume") + 1].decode(errors="replace"))
+    return ids
+
+
+def carpeta(s: dict) -> str | None:
+    """Dónde hay que pararse para retomarla; None si no tiene conversación guardada.
+
+    `--resume` busca la conversación según la carpeta. Una sesión que se movió
+    a otro lado figura con una carpeta distinta de la que la guarda: ahí manda
+    la de la propia conversación.
+    """
+    hallados = list((CLAUDE / "projects").glob(f"*/{s['id']}.jsonl"))
+    if not hallados:
+        return None
+    conversacion = hallados[0]
+    clave = "".join(c if c.isalnum() else "-" for c in s["cwd"])
+    if conversacion.parent.name == clave and os.path.isdir(s["cwd"]):
+        return s["cwd"]
+    with conversacion.open() as f:
+        for linea in f:
+            try:
+                cwd = json.loads(linea).get("cwd")
+            except ValueError:
+                continue
+            if cwd:
+                return cwd if os.path.isdir(cwd) else None
+    return None
+
+
+def a_reabrir(foto: dict) -> list[dict]:
+    vivas = {s["id"] for s in abiertas()}
+    salida = []
+    for s in foto.get("sesiones", []):
+        if s["id"] in vivas:
+            continue
+        cwd = carpeta(s)
+        if cwd:
+            salida.append({**s, "cwd": cwd})
+    return salida
+
+
+def orden(s: dict, primera: bool) -> list[str]:
+    # `exec bash`: si la sesión se cierra, la pestaña queda con una terminal.
+    adentro = f"claude --resume {shlex.quote(s['id'])}; exec bash"
+    return ["gnome-terminal", "--window" if primera else "--tab",
+            f"--working-directory={s['cwd']}", "--", "bash", "-ic", adentro]
+
+
+def restaurar() -> None:
+    foto = leer_foto()
+    if not foto or foto.get("boot") == arranque():
+        return
+    sesiones = a_reabrir(foto)
+    ok = True
+    for i, s in enumerate(sesiones):
+        if subprocess.run(orden(s, i == 0)).returncode != 0:
+            print(f"no pude abrir {s['nombre'] or s['id']}", file=sys.stderr)
+            ok = False
+        time.sleep(1.5)  # si no, las pestañas se cruzan con la ventana nueva
+    if ok:
+        escribir_foto(sesiones)  # las recién abiertas pueden no estar registradas aún
+
+
+def estado() -> None:
+    foto = leer_foto()
+    if not foto:
+        print("Todavía no hay foto de sesiones.")
+        return
+    pendiente = foto.get("boot") != arranque()
+    print("Pendiente de reabrir:" if pendiente else "Foto de este arranque:")
+    for s in foto.get("sesiones", []):
+        print(f"  {s['nombre'] or s['id'][:8]}  ({s['cwd']})")
+
+
+def ensayo() -> None:
+    foto = leer_foto()
+    if not foto:
+        print("Todavía no hay foto de sesiones.")
+        return
+    for i, s in enumerate(a_reabrir(foto)):
+        print(shlex.join(orden(s, i == 0)))
+
+
+def instalar() -> None:
+    UNIDADES.mkdir(parents=True, exist_ok=True)
+    AUTOSTART.mkdir(parents=True, exist_ok=True)
+    (UNIDADES / f"{NOMBRE}.service").write_text(
+        "[Unit]\nDescription=Claude Code Gadgets: foto de sesiones abiertas\n\n"
+        f"[Service]\nType=oneshot\nExecStart={ESTE} --guardar\n")
+    (UNIDADES / f"{NOMBRE}.timer").write_text(
+        "[Unit]\nDescription=Claude Code Gadgets: foto de sesiones abiertas\n\n"
+        "[Timer]\nOnActiveSec=60\nOnUnitActiveSec=120\nAccuracySec=15\n\n"
+        "[Install]\nWantedBy=timers.target\n")
+    (AUTOSTART / f"{NOMBRE}.desktop").write_text(
+        "[Desktop Entry]\nType=Application\nName=Reabrir sesiones de Claude\n"
+        f"Exec={ESTE} --restaurar\nX-GNOME-Autostart-enabled=true\n"
+        "X-GNOME-Autostart-Delay=25\nNoDisplay=true\n")
+    subprocess.run(["systemctl", "--user", "daemon-reload"], check=True)
+    subprocess.run(["systemctl", "--user", "enable", "--now", f"{NOMBRE}.timer"], check=True)
+    guardar()
+    print("Listo. Después de un reinicio, tus sesiones vuelven solas.")
+
+
+def desinstalar() -> None:
+    subprocess.run(["systemctl", "--user", "disable", "--now", f"{NOMBRE}.timer"],
+                   stderr=subprocess.DEVNULL)
+    for f in (UNIDADES / f"{NOMBRE}.service", UNIDADES / f"{NOMBRE}.timer",
+              AUTOSTART / f"{NOMBRE}.desktop", FOTO):
+        f.unlink(missing_ok=True)
+    subprocess.run(["systemctl", "--user", "daemon-reload"])
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    g = ap.add_mutually_exclusive_group()
+    for op in ("guardar", "restaurar", "estado", "ensayo", "instalar", "desinstalar"):
+        g.add_argument(f"--{op}", action="store_true")
+    a = ap.parse_args()
+    if not shutil.which("gnome-terminal") and (a.restaurar or a.instalar):
+        sys.exit("Hace falta gnome-terminal.")
+    accion = next((f for n, f in (("guardar", guardar), ("restaurar", restaurar), ("ensayo", ensayo),
+                                  ("instalar", instalar), ("desinstalar", desinstalar))
+                   if getattr(a, n)), estado)
+    accion()
+
+
+if __name__ == "__main__":
+    main()

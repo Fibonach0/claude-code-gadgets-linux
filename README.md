@@ -53,6 +53,7 @@ Se instalan con un comando y se desinstalan con otro. **El catálogo completo, p
 | **Costo por PR** | `claude-pr`: cuánto tiempo y cuántos pedidos costó cada PR mergeado. Para presupuestar. |
 | **Ritmo** | `claude-ritmo`: horas por semana, qué días rendís y cuánto viven tus PRs abiertos. |
 | **Retomar** | `claude-retomar`: tus últimas sesiones con su tema; elegís una y la reabre donde estaba. |
+| **Reabrir** | `claude-reabrir --instalar`: después de un reinicio, tus sesiones abiertas vuelven solas con su contexto. |
 | **Decisiones** | `claude-decisiones`: saca de las sesiones qué decidiste y por qué, a un `DECISIONES.md`. |
 | **Credenciales** | Hook que frena que una clave entre a un repo, al escribir un archivo y al commitear. |
 | **Vigía** | `claude-vigia`: trabajo sin commitear hace horas, commits sin pushear, ramas viejas y worktrees. |

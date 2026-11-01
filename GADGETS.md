@@ -112,6 +112,7 @@ Hace falta abrir una terminal nueva después de instalar.
 | `claude-panel` | Una página local con tiempo por día y proyecto, pedidos y costo estimado. |
 | `claude-buscar "…"` | Busca en todo lo que ya trabajaste y te dice de qué día y proyecto lo sacó. |
 | `claude-retomar` | Tus últimas sesiones con su tema; elegís una y la reabre. |
+| `claude-reabrir --instalar` | Después de un reinicio, vuelve a abrir solas las sesiones que tenías abiertas, cada una en su pestaña. |
 | `claude-pr` | Tiempo y pedidos que costó cada PR mergeado. |
 | `claude-ritmo` | Horas por semana, qué días rendís y cuánto viven tus PRs. |
 | `claude-decisiones` | Saca de las sesiones qué decidiste y por qué, a un `DECISIONES.md`. |
