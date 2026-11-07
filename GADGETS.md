@@ -37,7 +37,7 @@ notificación; si no estás en la compu y tenés **avisos al celular**, el aviso
 | **Salud** (`claude-salud`) | Disco, memoria, temperatura, batería, servicios caídos, reinicio pendiente. Avisa una vez por problema. | 15 min |
 | **Portero** (`claude-portero`) | Quién entra por SSH (usuario, desde dónde) y tandas de intentos fallidos. | 2 min |
 | **Vigía de internet** (`claude-red`) | Cuando internet se corta y vuelve, te dice cuánto duró el corte. `claude-red --cortes` muestra el historial. | 1 min |
-| **Despierto** (`claude-despierto`) | Que la compu no se suspenda mientras una sesión de Claude está trabajando. | 1 min |
+| **Despierto** (`claude-despierto`) | Que la compu no se suspenda, reinicie ni apague mientras una sesión de Claude está trabajando. | 1 min |
 | **Buzón** (`claude-buzon`) | Dejás una foto, PDF o Excel en la carpeta «Para Claude» y aparece al lado una ficha `.md` con los datos. | Al soltar el archivo |
 | **Vigía** (`claude-vigia`) | Trabajo sin commitear hace horas, commits sin pushear, ramas y worktrees olvidados. | 2 h |
 | **Cola** (`claude-cola`) | Toma los encargues que dejaste (`claude-cola "…"`) y los hace de a uno. Por defecto sólo lee y deja escrito qué haría. | 5 min |
